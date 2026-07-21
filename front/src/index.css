@@ -1,0 +1,116 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: #0A0A0A;
+  --color-surface: #121212;
+  --color-surface-hover: #1A1A1A;
+  --color-primary: #FF5100;
+  --color-primary-hover: #E64900;
+  --color-secondary: #344054;
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-text-secondary: rgba(255, 255, 255, 0.6);
+  /* Semantic foreground: primary text color — white in dark, near-black in light */
+  --color-foreground: #FFFFFF;
+
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+}
+
+/* ─── Light theme overrides ────────────────────────────────────────────────── */
+.light {
+  --color-background: #F6F1EB;
+  --color-surface: #FFFDF9;
+  --color-surface-hover: #F2EBE3;
+  --color-primary: #FF5100;
+  --color-primary-hover: #E64900;
+  --color-secondary: #344054;
+  --color-border: rgba(77, 54, 38, 0.14);
+  --color-text-secondary: rgba(45, 34, 25, 0.68);
+  --color-foreground: #1F1813;
+}
+
+/* ─── Base ──────────────────────────────────────────────────────────────────── */
+:root {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
+
+/* ─── Autofill — dark (default) ─────────────────────────────────────────────── */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:hover,
+textarea:-webkit-autofill:focus,
+select:-webkit-autofill,
+select:-webkit-autofill:hover,
+select:-webkit-autofill:focus {
+  -webkit-text-fill-color: white;
+  -webkit-box-shadow: 0 0 0 1000px var(--color-background) inset;
+  box-shadow: 0 0 0 1000px var(--color-background) inset;
+  caret-color: white;
+  transition: background-color 99999s ease-in-out 0s;
+}
+
+/* ─── Autofill — light ───────────────────────────────────────────────────────── */
+.light input:-webkit-autofill,
+.light input:-webkit-autofill:hover,
+.light input:-webkit-autofill:focus,
+.light textarea:-webkit-autofill,
+.light textarea:-webkit-autofill:hover,
+.light textarea:-webkit-autofill:focus,
+.light select:-webkit-autofill,
+.light select:-webkit-autofill:hover,
+.light select:-webkit-autofill:focus {
+  -webkit-text-fill-color: #111111;
+  -webkit-box-shadow: 0 0 0 1000px var(--color-background) inset;
+  box-shadow: 0 0 0 1000px var(--color-background) inset;
+  caret-color: #111111;
+}
+
+/* ─── Navbar input text ─────────────────────────────────────────────────────── */
+/* In dark mode inputs already inherit white; light mode needs explicit override */
+.light input,
+.light textarea,
+.light select {
+  color: #111111;
+}
+
+.light input::placeholder,
+.light textarea::placeholder {
+  color: rgba(45, 34, 25, 0.42);
+}
+
+/* ─── Scrollbar — dark (default) ────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* ─── Scrollbar — light ──────────────────────────────────────────────────────── */
+.light ::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.light ::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.28);
+}
