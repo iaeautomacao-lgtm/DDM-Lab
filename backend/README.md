@@ -97,9 +97,20 @@ alternativos historicos).
   com outras ferramentas do grupo, entao NAO apague sem confirmar que nada
   mais usa aquele projeto especifico.
 
+## Migracoes de schema
+
+`sql/001_schema.sql` e a base (instalacao nova, do zero). Toda mudanca de
+schema depois disso vira um arquivo numerado (`002_*.sql`, `003_*.sql`...),
+sempre idempotente (`IF NOT EXISTS` / `IF EXISTS`). Aplicar no phpMyAdmin do
+cPanel, na ordem, sempre que puder — nao precisa ser na hora que o arquivo
+e criado.
+
+- `002_add_solutions.sql` — tabela `solutions` (painel de Solucoes)
+
 ## Arquivos
 
-- `sql/001_schema.sql` — schema completo do MariaDB
+- `sql/001_schema.sql` — schema completo do MariaDB (instalacao nova)
+- `sql/00X_*.sql` — migracoes incrementais, ver acima
 - `.env.example` — todas as variaveis, com comentario do que cada uma faz
 - `scripts/migrate.mjs` — importa Supabase -> MariaDB (dados + arquivos)
 - `../front/server/` — API (auth, rotas de dados, storage) que substitui o Supabase
