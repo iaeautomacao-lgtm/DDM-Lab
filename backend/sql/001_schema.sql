@@ -318,24 +318,51 @@ CREATE TABLE IF NOT EXISTS stored_files (
 -- entram aqui dentro — so o link + resumo, o Labs e vitrine, nao hospedagem.
 
 CREATE TABLE IF NOT EXISTS solutions (
-  id            CHAR(36)     NOT NULL PRIMARY KEY,
-  title         VARCHAR(180) NOT NULL,
-  summary       TEXT         NOT NULL,
-  sector        ENUM('financeiro','planejamento','rh','juridico','backoffice','comercial','marketing','ti_ia','outros') NOT NULL,
-  type          ENUM('dashboard','sistema','automacao','ia','skill','outro') NOT NULL DEFAULT 'dashboard',
-  status        ENUM('planejado','em_desenvolvimento','publicado','pausado','arquivado') NOT NULL DEFAULT 'planejado',
-  url           VARCHAR(1000) NULL,
-  owner_name    VARCHAR(180) NULL,
-  owner_email   VARCHAR(255) NULL,
-  technologies  JSON         NULL,
-  created_by    CHAR(36)     NULL,
-  created_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-  updated_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
-                             ON UPDATE CURRENT_TIMESTAMP(3),
+  id             CHAR(36)     NOT NULL PRIMARY KEY,
+  title          VARCHAR(180) NOT NULL,
+  summary        TEXT         NOT NULL,
+  problem_solved TEXT         NULL,
+  sector         ENUM('financeiro','planejamento','rh','juridico','backoffice','comercial','marketing','ti_ia','outros') NOT NULL,
+  type           ENUM('dashboard','sistema','automacao','ia','skill','portal','outro') NOT NULL DEFAULT 'dashboard',
+  status         ENUM('planejado','em_desenvolvimento','homologacao','publicado','pausado','arquivado') NOT NULL DEFAULT 'planejado',
+  url            VARCHAR(1000) NULL,
+  owner_name     VARCHAR(180) NULL,
+  owner_email    VARCHAR(255) NULL,
+  technologies   JSON         NULL,
+  created_by     CHAR(36)     NULL,
+  created_at     DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at     DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
+                              ON UPDATE CURRENT_TIMESTAMP(3),
   KEY idx_solutions_sector (sector),
   KEY idx_solutions_status (status),
   KEY idx_solutions_type (type),
   CONSTRAINT fk_solutions_user FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Projetos/tarefas em andamento por setor. Vinculo opcional a uma solucao ja
+-- publicada (ex.: "Automacao de acordos" alimentando o "Painel Juridico").
+CREATE TABLE IF NOT EXISTS projects (
+  id           CHAR(36)     NOT NULL PRIMARY KEY,
+  title        VARCHAR(180) NOT NULL,
+  description  TEXT         NOT NULL,
+  sector       ENUM('financeiro','planejamento','rh','juridico','backoffice','comercial','marketing','ti_ia','outros') NOT NULL,
+  status       ENUM('ideia','planejado','em_andamento','bloqueado','concluido','cancelado') NOT NULL DEFAULT 'planejado',
+  priority     ENUM('baixa','media','alta','critica') NOT NULL DEFAULT 'media',
+  solution_id  CHAR(36)     NULL,
+  owner_name   VARCHAR(180) NULL,
+  owner_email  VARCHAR(255) NULL,
+  progress     TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  started_at   DATE         NULL,
+  due_date     DATE         NULL,
+  created_by   CHAR(36)     NULL,
+  created_at   DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at   DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
+                            ON UPDATE CURRENT_TIMESTAMP(3),
+  KEY idx_projects_sector (sector),
+  KEY idx_projects_status (status),
+  KEY idx_projects_solution (solution_id),
+  CONSTRAINT fk_projects_solution FOREIGN KEY (solution_id) REFERENCES solutions(id) ON DELETE SET NULL,
+  CONSTRAINT fk_projects_user FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── Auditoria ───────────────────────────────────────────────────────────────

@@ -106,6 +106,7 @@ cPanel, na ordem, sempre que puder — nao precisa ser na hora que o arquivo
 e criado.
 
 - `002_add_solutions.sql` — tabela `solutions` (painel de Solucoes)
+- `003_add_projects.sql` — tabela `projects` (projetos/tarefas por setor) + `solutions.problem_solved`
 
 ## Arquivos
 

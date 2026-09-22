@@ -1,5 +1,5 @@
 import { api } from '../../lib/apiClient';
-import type { Solution } from './types';
+import type { Project, Solution } from './types';
 
 export interface SolutionStats {
   totals: {
@@ -18,12 +18,11 @@ export interface SolutionFilters {
   type?: string;
 }
 
-const buildQuery = (filters: SolutionFilters) => {
+const buildQuery = (filters: SolutionFilters | ProjectFilters) => {
   const params = new URLSearchParams();
-  if (filters.search) params.set('search', filters.search);
-  if (filters.sector) params.set('sector', filters.sector);
-  if (filters.status) params.set('status', filters.status);
-  if (filters.type) params.set('type', filters.type);
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value) params.set(key, value);
+  });
   const query = params.toString();
   return query ? `?${query}` : '';
 };
@@ -38,6 +37,7 @@ export const fetchSolutionStats = async (): Promise<SolutionStats> => api.get<So
 export type SolutionInput = {
   title: string;
   summary: string;
+  problemSolved?: string;
   sector: string;
   type?: string;
   status?: string;
@@ -55,4 +55,41 @@ export const createSolution = async (input: SolutionInput): Promise<Solution> =>
 export const updateSolution = async (id: string, input: Partial<SolutionInput>): Promise<Solution> => {
   const { solution } = await api.put<{ solution: Solution }>(`/solutions/${id}`, input);
   return solution;
+};
+
+// ── Projetos ─────────────────────────────────────────────────────────────────
+
+export interface ProjectFilters {
+  sector?: string;
+  status?: string;
+  search?: string;
+}
+
+export const fetchProjects = async (filters: ProjectFilters = {}): Promise<Project[]> => {
+  const { projects } = await api.get<{ projects: Project[] }>(`/projects${buildQuery(filters)}`);
+  return projects;
+};
+
+export type ProjectInput = {
+  title: string;
+  description: string;
+  sector: string;
+  status?: string;
+  priority?: string;
+  solutionId?: string | null;
+  ownerName?: string;
+  ownerEmail?: string;
+  progress?: number;
+  startedAt?: string;
+  dueDate?: string;
+};
+
+export const createProject = async (input: ProjectInput): Promise<Project> => {
+  const { project } = await api.post<{ project: Project }>('/projects', input);
+  return project;
+};
+
+export const updateProject = async (id: string, input: Partial<ProjectInput>): Promise<Project> => {
+  const { project } = await api.put<{ project: Project }>(`/projects/${id}`, input);
+  return project;
 };

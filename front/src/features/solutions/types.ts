@@ -9,14 +9,15 @@ export type SolutionSector =
   | 'ti_ia'
   | 'outros';
 
-export type SolutionType = 'dashboard' | 'sistema' | 'automacao' | 'ia' | 'skill' | 'outro';
+export type SolutionType = 'dashboard' | 'sistema' | 'automacao' | 'ia' | 'skill' | 'portal' | 'outro';
 
-export type SolutionStatus = 'planejado' | 'em_desenvolvimento' | 'publicado' | 'pausado' | 'arquivado';
+export type SolutionStatus = 'planejado' | 'em_desenvolvimento' | 'homologacao' | 'publicado' | 'pausado' | 'arquivado';
 
 export interface Solution {
   id: string;
   title: string;
   summary: string;
+  problem_solved: string | null;
   sector: SolutionSector;
   type: SolutionType;
   status: SolutionStatus;
@@ -24,6 +25,28 @@ export interface Solution {
   owner_name: string | null;
   owner_email: string | null;
   technologies: string[] | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type ProjectStatus = 'ideia' | 'planejado' | 'em_andamento' | 'bloqueado' | 'concluido' | 'cancelado';
+export type ProjectPriority = 'baixa' | 'media' | 'alta' | 'critica';
+
+export interface Project {
+  id: string;
+  title: string;
+  description: string;
+  sector: SolutionSector;
+  status: ProjectStatus;
+  priority: ProjectPriority;
+  solution_id: string | null;
+  solution_title?: string | null;
+  owner_name: string | null;
+  owner_email: string | null;
+  progress: number;
+  started_at: string | null;
+  due_date: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -47,13 +70,31 @@ export const TYPE_OPTIONS: Array<{ value: SolutionType; label: string }> = [
   { value: 'automacao', label: 'Automação' },
   { value: 'ia', label: 'IA' },
   { value: 'skill', label: 'Skill' },
+  { value: 'portal', label: 'Portal' },
   { value: 'outro', label: 'Outro' },
 ];
 
 export const STATUS_OPTIONS: Array<{ value: SolutionStatus; label: string }> = [
   { value: 'planejado', label: 'Planejado' },
   { value: 'em_desenvolvimento', label: 'Em desenvolvimento' },
+  { value: 'homologacao', label: 'Homologação' },
   { value: 'publicado', label: 'Publicado' },
   { value: 'pausado', label: 'Pausado' },
   { value: 'arquivado', label: 'Arquivado' },
+];
+
+export const PROJECT_STATUS_OPTIONS: Array<{ value: ProjectStatus; label: string }> = [
+  { value: 'ideia', label: 'Ideia' },
+  { value: 'planejado', label: 'Planejado' },
+  { value: 'em_andamento', label: 'Em andamento' },
+  { value: 'bloqueado', label: 'Bloqueado' },
+  { value: 'concluido', label: 'Concluído' },
+  { value: 'cancelado', label: 'Cancelado' },
+];
+
+export const PROJECT_PRIORITY_OPTIONS: Array<{ value: ProjectPriority; label: string }> = [
+  { value: 'baixa', label: 'Baixa' },
+  { value: 'media', label: 'Média' },
+  { value: 'alta', label: 'Alta' },
+  { value: 'critica', label: 'Crítica' },
 ];

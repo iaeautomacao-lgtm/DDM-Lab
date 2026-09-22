@@ -1335,8 +1335,10 @@ router.get(
 // ══════════════════════════════════════════════════════════════════════════
 
 const SOLUTION_SECTORS = ["financeiro", "planejamento", "rh", "juridico", "backoffice", "comercial", "marketing", "ti_ia", "outros"];
-const SOLUTION_TYPES = ["dashboard", "sistema", "automacao", "ia", "skill", "outro"];
-const SOLUTION_STATUSES = ["planejado", "em_desenvolvimento", "publicado", "pausado", "arquivado"];
+const SOLUTION_TYPES = ["dashboard", "sistema", "automacao", "ia", "skill", "portal", "outro"];
+const SOLUTION_STATUSES = ["planejado", "em_desenvolvimento", "homologacao", "publicado", "pausado", "arquivado"];
+const PROJECT_STATUSES = ["ideia", "planejado", "em_andamento", "bloqueado", "concluido", "cancelado"];
+const PROJECT_PRIORITIES = ["baixa", "media", "alta", "critica"];
 
 /** Grava uma linha na trilha de auditoria generica (nao lanca — auditoria nunca derruba a request principal). */
 const logAudit = async (userId, action, entity, entityId, details) => {
@@ -1419,7 +1421,7 @@ router.post(
   "/solutions",
   requireAuth,
   h(async (req, res) => {
-    const { title, summary, sector, type, status, url, ownerName, ownerEmail, technologies } = req.body || {};
+    const { title, summary, problemSolved, sector, type, status, url, ownerName, ownerEmail, technologies } = req.body || {};
 
     if (!title?.trim() || !summary?.trim() || !SOLUTION_SECTORS.includes(sector)) {
       return res.status(400).json({ error: { message: "Titulo, resumo e setor sao obrigatorios." } });
@@ -1433,12 +1435,13 @@ router.post(
 
     const id = uuid();
     await db.exec(
-      `INSERT INTO solutions (id, title, summary, sector, type, status, url, owner_name, owner_email, technologies, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO solutions (id, title, summary, problem_solved, sector, type, status, url, owner_name, owner_email, technologies, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         title.trim(),
         summary.trim(),
+        problemSolved?.trim() || null,
         sector,
         type || "dashboard",
         status || "planejado",
@@ -1464,7 +1467,7 @@ router.put(
     const existing = await db.queryOne(`SELECT id FROM solutions WHERE id = ?`, [req.params.id]);
     if (!existing) return res.status(404).json({ error: { message: "Solucao nao encontrada." } });
 
-    const { title, summary, sector, type, status, url, ownerName, ownerEmail, technologies } = req.body || {};
+    const { title, summary, problemSolved, sector, type, status, url, ownerName, ownerEmail, technologies } = req.body || {};
 
     if (sector && !SOLUTION_SECTORS.includes(sector)) {
       return res.status(400).json({ error: { message: "Setor invalido." } });
@@ -1486,6 +1489,7 @@ router.put(
 
     push("title", title?.trim());
     push("summary", summary?.trim());
+    if (problemSolved !== undefined) push("problem_solved", problemSolved?.trim() || null);
     push("sector", sector);
     push("type", type);
     push("status", status);
@@ -1502,6 +1506,170 @@ router.put(
 
     const row = await db.queryOne(`SELECT * FROM solutions WHERE id = ?`, [req.params.id]);
     res.json({ solution: row });
+  }),
+);
+
+// ══════════════════════════════════════════════════════════════════════════
+// Projetos/tarefas em andamento por setor (vinculo opcional a uma solucao)
+// ══════════════════════════════════════════════════════════════════════════
+
+router.get(
+  "/projects",
+  requireAuth,
+  h(async (req, res) => {
+    const { sector, status, search } = req.query;
+    const conditions = [];
+    const params = [];
+
+    if (sector && SOLUTION_SECTORS.includes(sector)) {
+      conditions.push("p.sector = ?");
+      params.push(sector);
+    }
+    if (status && PROJECT_STATUSES.includes(status)) {
+      conditions.push("p.status = ?");
+      params.push(status);
+    }
+    if (search) {
+      conditions.push(`(p.title LIKE ? OR p.description LIKE ? OR p.owner_name LIKE ?)`);
+      const term = `%${search}%`;
+      params.push(term, term, term);
+    }
+
+    const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+    const rows = await db.query(
+      `SELECT p.*, s.title AS solution_title
+       FROM projects p
+       LEFT JOIN solutions s ON s.id = p.solution_id
+       ${where}
+       ORDER BY FIELD(p.status, 'em_andamento', 'bloqueado', 'planejado', 'ideia', 'concluido', 'cancelado'), p.updated_at DESC`,
+      params,
+    );
+    res.json({ projects: rows });
+  }),
+);
+
+router.get(
+  "/projects/:id",
+  requireAuth,
+  h(async (req, res) => {
+    const row = await db.queryOne(
+      `SELECT p.*, s.title AS solution_title FROM projects p LEFT JOIN solutions s ON s.id = p.solution_id WHERE p.id = ?`,
+      [req.params.id],
+    );
+    if (!row) return res.status(404).json({ error: { message: "Projeto nao encontrado." } });
+    res.json({ project: row });
+  }),
+);
+
+const clampProgress = (value) => Math.min(Math.max(Number(value) || 0, 0), 100);
+
+router.post(
+  "/projects",
+  requireAuth,
+  h(async (req, res) => {
+    const { title, description, sector, status, priority, solutionId, ownerName, ownerEmail, progress, startedAt, dueDate } =
+      req.body || {};
+
+    if (!title?.trim() || !description?.trim() || !SOLUTION_SECTORS.includes(sector)) {
+      return res.status(400).json({ error: { message: "Titulo, descricao e setor sao obrigatorios." } });
+    }
+    if (status && !PROJECT_STATUSES.includes(status)) {
+      return res.status(400).json({ error: { message: "Status invalido." } });
+    }
+    if (priority && !PROJECT_PRIORITIES.includes(priority)) {
+      return res.status(400).json({ error: { message: "Prioridade invalida." } });
+    }
+    if (solutionId) {
+      const solutionExists = await db.queryOne(`SELECT id FROM solutions WHERE id = ?`, [solutionId]);
+      if (!solutionExists) return res.status(400).json({ error: { message: "Solucao vinculada nao encontrada." } });
+    }
+
+    const id = uuid();
+    await db.exec(
+      `INSERT INTO projects (id, title, description, sector, status, priority, solution_id, owner_name, owner_email, progress, started_at, due_date, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id,
+        title.trim(),
+        description.trim(),
+        sector,
+        status || "planejado",
+        priority || "media",
+        solutionId || null,
+        ownerName || null,
+        ownerEmail || null,
+        clampProgress(progress),
+        startedAt || null,
+        dueDate || null,
+        req.user.id,
+      ],
+    );
+
+    await logAudit(req.user.id, "created", "project", id, { title, sector });
+
+    const row = await db.queryOne(
+      `SELECT p.*, s.title AS solution_title FROM projects p LEFT JOIN solutions s ON s.id = p.solution_id WHERE p.id = ?`,
+      [id],
+    );
+    res.status(201).json({ project: row });
+  }),
+);
+
+router.put(
+  "/projects/:id",
+  requireAuth,
+  h(async (req, res) => {
+    const existing = await db.queryOne(`SELECT id FROM projects WHERE id = ?`, [req.params.id]);
+    if (!existing) return res.status(404).json({ error: { message: "Projeto nao encontrado." } });
+
+    const { title, description, sector, status, priority, solutionId, ownerName, ownerEmail, progress, startedAt, dueDate } =
+      req.body || {};
+
+    if (sector && !SOLUTION_SECTORS.includes(sector)) {
+      return res.status(400).json({ error: { message: "Setor invalido." } });
+    }
+    if (status && !PROJECT_STATUSES.includes(status)) {
+      return res.status(400).json({ error: { message: "Status invalido." } });
+    }
+    if (priority && !PROJECT_PRIORITIES.includes(priority)) {
+      return res.status(400).json({ error: { message: "Prioridade invalida." } });
+    }
+    if (solutionId) {
+      const solutionExists = await db.queryOne(`SELECT id FROM solutions WHERE id = ?`, [solutionId]);
+      if (!solutionExists) return res.status(400).json({ error: { message: "Solucao vinculada nao encontrada." } });
+    }
+
+    const set = [];
+    const params = [];
+    const push = (column, value) => {
+      if (value === undefined) return;
+      set.push(`${column} = ?`);
+      params.push(value);
+    };
+
+    push("title", title?.trim());
+    push("description", description?.trim());
+    push("sector", sector);
+    push("status", status);
+    push("priority", priority);
+    if (solutionId !== undefined) push("solution_id", solutionId || null);
+    push("owner_name", ownerName || null);
+    push("owner_email", ownerEmail || null);
+    if (progress !== undefined) push("progress", clampProgress(progress));
+    if (startedAt !== undefined) push("started_at", startedAt || null);
+    if (dueDate !== undefined) push("due_date", dueDate || null);
+
+    if (set.length) {
+      params.push(req.params.id);
+      await db.exec(`UPDATE projects SET ${set.join(", ")} WHERE id = ?`, params);
+      await logAudit(req.user.id, "updated", "project", req.params.id, req.body);
+    }
+
+    const row = await db.queryOne(
+      `SELECT p.*, s.title AS solution_title FROM projects p LEFT JOIN solutions s ON s.id = p.solution_id WHERE p.id = ?`,
+      [req.params.id],
+    );
+    res.json({ project: row });
   }),
 );
 
