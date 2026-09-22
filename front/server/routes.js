@@ -1330,4 +1330,179 @@ router.get(
   }),
 );
 
+// ══════════════════════════════════════════════════════════════════════════
+// Soluções — catálogo corporativo de dashboards/sistemas/automações
+// ══════════════════════════════════════════════════════════════════════════
+
+const SOLUTION_SECTORS = ["financeiro", "planejamento", "rh", "juridico", "backoffice", "comercial", "marketing", "ti_ia", "outros"];
+const SOLUTION_TYPES = ["dashboard", "sistema", "automacao", "ia", "skill", "outro"];
+const SOLUTION_STATUSES = ["planejado", "em_desenvolvimento", "publicado", "pausado", "arquivado"];
+
+/** Grava uma linha na trilha de auditoria generica (nao lanca — auditoria nunca derruba a request principal). */
+const logAudit = async (userId, action, entity, entityId, details) => {
+  await db
+    .exec(`INSERT INTO audit_log (user_id, action, entity, entity_id, details) VALUES (?, ?, ?, ?, ?)`, [
+      userId || null,
+      action,
+      entity,
+      String(entityId),
+      JSON.stringify(details ?? {}),
+    ])
+    .catch((err) => console.error("Falha ao gravar audit_log:", err));
+};
+
+router.get(
+  "/solutions",
+  requireAuth,
+  h(async (req, res) => {
+    const { search, sector, status, type } = req.query;
+    const conditions = [];
+    const params = [];
+
+    if (search) {
+      conditions.push(`(title LIKE ? OR summary LIKE ? OR owner_name LIKE ?)`);
+      const term = `%${search}%`;
+      params.push(term, term, term);
+    }
+    if (sector && SOLUTION_SECTORS.includes(sector)) {
+      conditions.push("sector = ?");
+      params.push(sector);
+    }
+    if (status && SOLUTION_STATUSES.includes(status)) {
+      conditions.push("status = ?");
+      params.push(status);
+    }
+    if (type && SOLUTION_TYPES.includes(type)) {
+      conditions.push("type = ?");
+      params.push(type);
+    }
+
+    const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+    const rows = await db.query(
+      `SELECT * FROM solutions ${where}
+       ORDER BY FIELD(status, 'em_desenvolvimento', 'publicado', 'planejado', 'pausado', 'arquivado'), updated_at DESC`,
+      params,
+    );
+    res.json({ solutions: rows });
+  }),
+);
+
+router.get(
+  "/solutions/stats",
+  requireAuth,
+  h(async (req, res) => {
+    const totals = await db.queryOne(
+      `SELECT COUNT(*) AS total,
+              SUM(status = 'publicado') AS publicados,
+              SUM(status = 'em_desenvolvimento') AS desenvolvimento,
+              SUM(status = 'planejado') AS planejados
+       FROM solutions WHERE status != 'arquivado'`,
+    );
+    const bySector = await db.query(
+      `SELECT sector, COUNT(*) AS total FROM solutions WHERE status != 'arquivado' GROUP BY sector ORDER BY total DESC`,
+    );
+    res.json({ totals, bySector });
+  }),
+);
+
+router.get(
+  "/solutions/:id",
+  requireAuth,
+  h(async (req, res) => {
+    const row = await db.queryOne(`SELECT * FROM solutions WHERE id = ?`, [req.params.id]);
+    if (!row) return res.status(404).json({ error: { message: "Solucao nao encontrada." } });
+    res.json({ solution: row });
+  }),
+);
+
+router.post(
+  "/solutions",
+  requireAuth,
+  h(async (req, res) => {
+    const { title, summary, sector, type, status, url, ownerName, ownerEmail, technologies } = req.body || {};
+
+    if (!title?.trim() || !summary?.trim() || !SOLUTION_SECTORS.includes(sector)) {
+      return res.status(400).json({ error: { message: "Titulo, resumo e setor sao obrigatorios." } });
+    }
+    if (type && !SOLUTION_TYPES.includes(type)) {
+      return res.status(400).json({ error: { message: "Tipo invalido." } });
+    }
+    if (status && !SOLUTION_STATUSES.includes(status)) {
+      return res.status(400).json({ error: { message: "Status invalido." } });
+    }
+
+    const id = uuid();
+    await db.exec(
+      `INSERT INTO solutions (id, title, summary, sector, type, status, url, owner_name, owner_email, technologies, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id,
+        title.trim(),
+        summary.trim(),
+        sector,
+        type || "dashboard",
+        status || "planejado",
+        url || null,
+        ownerName || null,
+        ownerEmail || null,
+        JSON.stringify(technologies || []),
+        req.user.id,
+      ],
+    );
+
+    await logAudit(req.user.id, "created", "solution", id, { title, sector });
+
+    const row = await db.queryOne(`SELECT * FROM solutions WHERE id = ?`, [id]);
+    res.status(201).json({ solution: row });
+  }),
+);
+
+router.put(
+  "/solutions/:id",
+  requireAuth,
+  h(async (req, res) => {
+    const existing = await db.queryOne(`SELECT id FROM solutions WHERE id = ?`, [req.params.id]);
+    if (!existing) return res.status(404).json({ error: { message: "Solucao nao encontrada." } });
+
+    const { title, summary, sector, type, status, url, ownerName, ownerEmail, technologies } = req.body || {};
+
+    if (sector && !SOLUTION_SECTORS.includes(sector)) {
+      return res.status(400).json({ error: { message: "Setor invalido." } });
+    }
+    if (type && !SOLUTION_TYPES.includes(type)) {
+      return res.status(400).json({ error: { message: "Tipo invalido." } });
+    }
+    if (status && !SOLUTION_STATUSES.includes(status)) {
+      return res.status(400).json({ error: { message: "Status invalido." } });
+    }
+
+    const set = [];
+    const params = [];
+    const push = (column, value) => {
+      if (value === undefined) return;
+      set.push(`${column} = ?`);
+      params.push(value);
+    };
+
+    push("title", title?.trim());
+    push("summary", summary?.trim());
+    push("sector", sector);
+    push("type", type);
+    push("status", status);
+    push("url", url || null);
+    push("owner_name", ownerName || null);
+    push("owner_email", ownerEmail || null);
+    if (technologies !== undefined) push("technologies", JSON.stringify(technologies || []));
+
+    if (set.length) {
+      params.push(req.params.id);
+      await db.exec(`UPDATE solutions SET ${set.join(", ")} WHERE id = ?`, params);
+      await logAudit(req.user.id, "updated", "solution", req.params.id, req.body);
+    }
+
+    const row = await db.queryOne(`SELECT * FROM solutions WHERE id = ?`, [req.params.id]);
+    res.json({ solution: row });
+  }),
+);
+
 export default router;

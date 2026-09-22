@@ -14,6 +14,7 @@ import { DDMCreator } from './pages/DDMCreator';
 import { Library } from './pages/Library';
 import { Login } from './pages/Login';
 import { Profile } from './pages/Meu perfil';
+import { SolutionsPage } from './features/solutions/SolutionsPage';
 import { Settings } from './pages/Uso responsavel';
 
 function AppContent() {
@@ -38,6 +39,7 @@ function AppContent() {
         <Route element={<ProtectedRoute />}>
           <Route path="/" element={<Layout />}>
             <Route index element={<Dashboard />} />
+            <Route path="solucoes" element={<SolutionsPage />} />
             <Route path="generator" element={<Generator />} />
             <Route path="insights" element={<Navigate to="/admin" replace />} />
             <Route path="library" element={<Library />} />

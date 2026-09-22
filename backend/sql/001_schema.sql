@@ -309,6 +309,35 @@ CREATE TABLE IF NOT EXISTS stored_files (
   CONSTRAINT fk_files_owner FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ── Painel de Solucoes (catalogo corporativo de dashboards/sistemas) ────────
+-- Pedido do CEO via reuniao de planejamento: cada setor cadastra o que
+-- construiu (dashboard, sistema, automacao, skill de IA), com link e resumo,
+-- pra empresa toda ver o que ja existe e evitar retrabalho duplicado
+-- (caso citado: Control Desk de SP x Fernanda/Nivea de Operacoes fazendo a
+-- mesma coisa sem saber). Sistemas robustos (com banco/backend proprio) nao
+-- entram aqui dentro — so o link + resumo, o Labs e vitrine, nao hospedagem.
+
+CREATE TABLE IF NOT EXISTS solutions (
+  id            CHAR(36)     NOT NULL PRIMARY KEY,
+  title         VARCHAR(180) NOT NULL,
+  summary       TEXT         NOT NULL,
+  sector        ENUM('financeiro','planejamento','rh','juridico','backoffice','comercial','marketing','ti_ia','outros') NOT NULL,
+  type          ENUM('dashboard','sistema','automacao','ia','skill','outro') NOT NULL DEFAULT 'dashboard',
+  status        ENUM('planejado','em_desenvolvimento','publicado','pausado','arquivado') NOT NULL DEFAULT 'planejado',
+  url           VARCHAR(1000) NULL,
+  owner_name    VARCHAR(180) NULL,
+  owner_email   VARCHAR(255) NULL,
+  technologies  JSON         NULL,
+  created_by    CHAR(36)     NULL,
+  created_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
+                             ON UPDATE CURRENT_TIMESTAMP(3),
+  KEY idx_solutions_sector (sector),
+  KEY idx_solutions_status (status),
+  KEY idx_solutions_type (type),
+  CONSTRAINT fk_solutions_user FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ── Auditoria ───────────────────────────────────────────────────────────────
 -- Nao existia no Supabase. Entra agora: sem RLS, a trilha de quem fez o que
 -- passa a ser a principal evidencia em caso de incidente.

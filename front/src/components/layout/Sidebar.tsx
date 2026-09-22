@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   User,
   ImagePlus,
+  Boxes,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Logo } from '../ui/Logo';
@@ -17,6 +18,7 @@ import { useAuth } from '../../lib/AuthContext';
 
 const navItems: Array<{ icon: React.ElementType; label: string; path: string; adminOnly?: boolean }> = [
   { icon: LayoutDashboard, label: 'Inicio', path: '/' },
+  { icon: Boxes, label: 'Solucoes', path: '/solucoes' },
   { icon: Sparkles, label: 'Criar Pedido', path: '/generator' },
   { icon: Library, label: 'Modelos Prontos', path: '/library' },
   { icon: ImagePlus, label: 'DDM Creator', path: '/ddmcreator' },

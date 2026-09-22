@@ -7,6 +7,7 @@ import { cn } from '../../lib/utils';
 
 const routeTitles: Record<string, { title: string; subtitle: string }> = {
   '/': { title: 'Dashboard', subtitle: 'Visao geral da plataforma' },
+  '/solucoes': { title: 'Soluções', subtitle: 'Catalogo de dashboards e sistemas dos setores' },
   '/generator': { title: 'Criar Pedido', subtitle: 'Monte seu prompt ideal' },
   '/library': { title: 'Modelos Prontos', subtitle: 'Templates por setor' },
   '/settings': { title: 'Configuracoes', subtitle: 'Uso responsavel e preferencias' },
