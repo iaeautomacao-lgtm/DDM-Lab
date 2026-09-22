@@ -159,6 +159,10 @@ const parseList = (value) =>
 const ALLOWED_DOMAINS = parseList(process.env.ALLOWED_EMAIL_DOMAINS || "ddm.adv.br,grupoddm.com.br,grupoddm.ia.br");
 const ADMIN_EMAILS = parseList(process.env.ADMIN_EMAILS);
 const RH_EMAILS = parseList(process.env.RH_EMAILS);
+// Contas descartadas na migracao (ex.: duplicata por typo de dominio no
+// cadastro original). Nao migra a linha de profiles nem nada que dependa
+// dela — decisao humana, nao automatica.
+const EXCLUDE_EMAILS = parseList(process.env.EXCLUDE_EMAILS);
 const roleForEmail = (email) => {
   const e = String(email || "").trim().toLowerCase();
   if (ADMIN_EMAILS.includes(e)) return "admin";
@@ -210,6 +214,10 @@ const migrateUsers = async () => {
     const id = profile.id;
     const email = String(profile.email || "").trim().toLowerCase();
     if (!email) continue;
+    if (EXCLUDE_EMAILS.includes(email)) {
+      console.log(`  excluido (EXCLUDE_EMAILS): ${email}`);
+      continue;
+    }
 
     const auth = authById.get(id);
     let passwordHash = auth?.encrypted_password || null;
