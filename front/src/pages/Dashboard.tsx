@@ -2,20 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion';
 import {
   ArrowRight,
-  Briefcase,
   Globe,
   Rocket,
   Sparkles,
-  Target,
-  TrendingUp,
   Zap,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { LearningStories } from '../components/LearningStories';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { useAuth } from '../lib/AuthContext';
-import { emptySnapshot, formatSavedTime, getMissionProgressAsync, getMissionRankLabel, type MissionProgressSnapshot } from '../lib/missionProgress';
 
 const HERO_PLACEHOLDERS = [
   'Criar e-mail para cliente...',
@@ -27,7 +22,6 @@ export const Dashboard = () => {
   const navigate = useNavigate();
   const { profile } = useAuth();
   const [quickRequest, setQuickRequest] = useState('');
-  const [missionProgress, setMissionProgress] = useState<MissionProgressSnapshot>(emptySnapshot());
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [typedPlaceholder, setTypedPlaceholder] = useState('');
   const heroMouseX = useMotionValue(0);
@@ -38,12 +32,6 @@ export const Dashboard = () => {
   const mascotTranslateY = useTransform(springMouseY, [-1, 1], [-10, 10]);
   const glowTranslateX = useTransform(springMouseX, [-1, 1], [-18, 18]);
   const glowTranslateY = useTransform(springMouseY, [-1, 1], [-14, 14]);
-
-  useEffect(() => {
-    if (profile?.uid) {
-      getMissionProgressAsync(profile.uid).then(setMissionProgress).catch(() => {});
-    }
-  }, [profile?.uid]);
 
   useEffect(() => {
     const fullText = HERO_PLACEHOLDERS[placeholderIndex];
@@ -66,8 +54,6 @@ export const Dashboard = () => {
 
   const rawName = profile?.preferredName || profile?.displayName?.split(' ')[0]?.split('.')[0] || 'Colaborador';
   const firstName = rawName.charAt(0).toUpperCase() + rawName.slice(1).toLowerCase();
-  const currentRank = getMissionRankLabel(missionProgress.totalXp);
-  const savedTime = formatSavedTime(missionProgress.savedMinutes);
 
   const goToGeneratorFromDashboard = () => {
     const objective = quickRequest.trim();
@@ -144,16 +130,12 @@ export const Dashboard = () => {
             </p>
 
             <div className="flex w-full flex-col gap-3 sm:flex-row md:w-auto">
-              <Button onClick={() => navigate('/cases')} className="w-full justify-center rounded-xl sm:w-auto">
-                Ver Cases do meu Setor
-                <Briefcase size={18} className="ml-2" />
-              </Button>
               <Button
-                variant="ghost"
                 onClick={() => navigate('/generator')}
-                className="w-full justify-center rounded-xl border border-border sm:w-auto"
+                className="w-full justify-center rounded-xl sm:w-auto"
               >
                 Começar do zero
+                <ArrowRight size={18} className="ml-2" />
               </Button>
             </div>
           </div>
@@ -255,71 +237,6 @@ export const Dashboard = () => {
         </motion.div>
       </section>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 md:gap-6">
-        <Card className="group relative overflow-hidden border-primary/12 bg-[radial-gradient(circle_at_top_left,rgba(255,87,34,0.18),transparent_42%),linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0))] p-0">
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/8 via-transparent to-transparent opacity-70" />
-          <div className="relative flex items-center gap-5 p-6">
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-primary/15 bg-primary/15 text-primary shadow-[0_0_25px_rgba(255,87,34,0.16)]">
-              <TrendingUp size={26} />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-text-secondary">
-                Missões concluídas
-              </p>
-              <div className="mt-2 flex items-end gap-3">
-                <span className="text-4xl font-black leading-none text-foreground">
-                  {missionProgress.completedMissionIds.length}
-                </span>
-                <span className="pb-1 text-xs font-medium text-primary/80">na jornada atual</span>
-              </div>
-            </div>
-          </div>
-        </Card>
-
-        <Card
-          className="group relative cursor-pointer overflow-hidden border-emerald-400/12 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.16),transparent_40%),linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0))] p-0 transition-all duration-300 hover:-translate-y-1 hover:border-emerald-400/25 hover:shadow-[0_18px_45px_rgba(16,185,129,0.12)]"
-          onClick={() => navigate('/cases')}
-        >
-          <div className="relative flex items-center gap-5 p-6">
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/15 bg-emerald-400/12 text-emerald-400 shadow-[0_0_25px_rgba(16,185,129,0.14)]">
-              <Target size={26} />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-text-secondary">
-                    Evolução em IA
-                  </p>
-                  <h3 className="mt-2 text-3xl font-black leading-tight text-foreground">{currentRank}</h3>
-                </div>
-                <div className="mt-1 rounded-full border border-border bg-surface-hover p-2 text-text-secondary transition-colors group-hover:text-foreground">
-                  <ArrowRight size={16} />
-                </div>
-              </div>
-            </div>
-          </div>
-        </Card>
-
-        <Card className="group relative overflow-hidden border-border p-0">
-          <div className="relative flex items-center gap-5 p-6">
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-border bg-surface-hover text-foreground shadow-[0_0_25px_rgba(255,87,34,0.05)]">
-              <Sparkles size={26} />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-text-secondary">
-                Tempo economizado no mês
-              </p>
-              <div className="mt-2 flex items-end gap-3">
-                <span className="text-4xl font-black leading-none text-foreground">{savedTime}</span>
-                <span className="pb-1 text-xs font-medium text-text-secondary">com apoio do Acordito</span>
-              </div>
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      <LearningStories />
-
       {/* Sobre */}
       <motion.section
         initial={{ opacity: 0, y: 24 }}
@@ -387,15 +304,15 @@ export const Dashboard = () => {
               <h3 className="text-xl font-extrabold leading-snug">
               </h3>
               <p className="text-sm text-text-secondary leading-relaxed max-w-xl">
-                O Acordito é o seu assistente interno treinado para o contexto do Grupo DDM. Use os modelos prontos, crie pedidos personalizados e acompanhe sua evolução com a gamificação — cada missão concluída é tempo real economizado.
+                O Acordito é o seu assistente interno treinado para o contexto do Grupo DDM. Use os modelos prontos ou crie pedidos personalizados para acelerar sua rotina.
               </p>
             </div>
             <div className="shrink-0">
               <button
-                onClick={() => navigate('/cases')}
+                onClick={() => navigate('/generator')}
                 className="flex items-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-bold text-white hover:bg-primary/90 transition-colors"
               >
-                Começar uma missão
+                Criar um pedido
                 <ArrowRight size={16} />
               </button>
             </div>

@@ -2,7 +2,6 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { Sidebar } from './Sidebar';
 import { Navbar } from './Navbar';
-import { RHBalloon } from '../RHBalloon';
 import { SugestaoBox } from '../SugestaoBox';
 import { AnnouncementModal } from '../AnnouncementModal';
 import { Menu } from 'lucide-react'; // Removemos o ícone de 'X' que estava sobrando
@@ -11,7 +10,6 @@ export const Layout = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const location = useLocation();
-  const hideFloatingAssistant = location.pathname === '/generator' || location.pathname === '/ddmcreator';
   const hideFooter = location.pathname === '/generator' || location.pathname === '/ddmcreator';
 
   useEffect(() => {
@@ -84,7 +82,6 @@ export const Layout = () => {
         )}
       </div>
 
-      {!hideFloatingAssistant && <RHBalloon />}
       <SugestaoBox />
       <AnnouncementModal />
     </div>

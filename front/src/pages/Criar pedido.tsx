@@ -19,9 +19,7 @@ import ReactMarkdown from 'react-markdown';
 
 import { Card } from '../components/ui/Card';
 import { cn } from '../lib/utils';
-import { MissionCompleteModal } from '../components/MissionCompleteModal';
 import { useAuth } from '../lib/AuthContext';
-import { completeMissionProgressAsync } from '../lib/missionProgress';
 import {
   appendConversationMessage,
   createConversationThread,
@@ -33,7 +31,6 @@ import {
   type ConversationRecord,
 } from '../lib/supabaseData';
 import { generatePrompt, generateImage, isImageRequest, MODEL_AVAILABILITY, type GeminiFileInput, type ImageGenerationResult } from '../services/aicomandos';
-import { generateChatResponseWithOpenAI } from '../lib/openai';
 import { fetchAgentSystemPrompt } from '../lib/agentConfig';
 import { getDailyUsage, incrementTextTokens, TEXT_TOKEN_DAILY_LIMIT } from '../lib/usageLimit';
 import { isRHQuery, searchKnowledge } from '../lib/rhKnowledge';
@@ -56,29 +53,12 @@ type GeneratorLocationState =
   | {
       prompt?: string;
       objective?: string;
-      missionTitle?: string;
-      missionId?: string;
-      missionBadge?: string;
-      missionXp?: number;
-      missionSavedMinutes?: number;
       sector?: string;
       introMessage?: string;
       startStep?: number;
-      missionObjective?: string;
-      missionStarterPrompt?: string;
     }
   | null
   | undefined;
-
-type ActiveMission = {
-  id: string;
-  title: string;
-  badge: string;
-  xp: number;
-  savedMinutes: number;
-  objective?: string;
-  starterPrompt?: string;
-};
 
 const STYLE_OPTIONS: Tone[] = ['Profissional', 'Criativo', 'Técnico', 'Amigável'];
 const BUSINESS_DEPARTMENTS = ['RH', 'Jurídico', 'Financeiro', 'Backoffice', 'Planejamento', 'Comercial', 'Marketing', 'Gestão'] as const;
@@ -169,10 +149,6 @@ export const Generator = () => {
   const [input, setInput] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [loadError, setLoadError] = useState('');
-  const [missionRewardToast, setMissionRewardToast] = useState('');
-  const [activeMission, setActiveMission] = useState<ActiveMission | null>(null);
-  const [completedMission, setCompletedMission] = useState<ActiveMission | null>(null);
-  const [showMissionModal, setShowMissionModal] = useState(false);
   const [agentConfig, setAgentConfig] = useState({
     sector: profile?.department || 'RH',
     model: 'OpenAI' as AIModel,
@@ -216,20 +192,6 @@ export const Generator = () => {
 
     if (state.sector) {
       setAgentConfig((current) => ({ ...current, sector: state.sector }));
-    }
-
-    if (state.missionId && state.missionTitle) {
-      setActiveMission({
-        id: state.missionId,
-        title: state.missionTitle,
-        badge: state.missionBadge || 'Conquista DDM',
-        xp: state.missionXp || 0,
-        savedMinutes: state.missionSavedMinutes || 0,
-        objective: state.missionObjective,
-        starterPrompt: state.missionStarterPrompt,
-      });
-    } else {
-      setActiveMission(null);
     }
 
     if (state.introMessage) {
@@ -296,12 +258,6 @@ export const Generator = () => {
     return () => { cancelled = true; };
   }, [agentConfig.sector]);
 
-  useEffect(() => {
-    if (!missionRewardToast) return;
-
-    const timeoutId = window.setTimeout(() => setMissionRewardToast(''), 3200);
-    return () => window.clearTimeout(timeoutId);
-  }, [missionRewardToast]);
 
   const currentConversation = useMemo(
     () => conversations.find((item) => item.id === selectedConversationId) || null,
@@ -314,7 +270,6 @@ export const Generator = () => {
     setMessages([]);
     setInput('');
     setLoadError('');
-    setActiveMission(null);
   };
 
   const handleDeleteConversation = async (conversationId: string) => {
@@ -466,11 +421,6 @@ export const Generator = () => {
           `Setor: ${agentConfig.sector}`,
           `Modelo: ${autoModel}`,
           `Estilo: ${agentConfig.style}`,
-          ...(activeMission
-            ? [
-                `MISSAO ATIVA - titulo: "${activeMission.title}", objetivo: ${activeMission.objective || activeMission.badge}${activeMission.starterPrompt ? ', instrucao: ' + activeMission.starterPrompt : ''}. Guie o usuario passo a passo para cumprir este objetivo. Ao concluir, confirme que a missao foi entregue.`,
-              ]
-            : []),
         ].join('. ') + kbContext;
 
         const response = await generatePrompt(promptText, agentConfig.sector, context, filesToSend, autoModel);
@@ -523,54 +473,6 @@ export const Generator = () => {
         }
       }
 
-      if (user && activeMission) {
-        const missionSnapshot = activeMission;
-        const userId = user.id;
-
-        const recentMessages = [
-          ...messages,
-          userMessage,
-          { id: assistantMessage.id, role: 'assistant' as const, content: assistantContent, createdAt: assistantMessage.createdAt },
-        ];
-
-        // Require at least 2 complete exchanges before evaluating — prevents
-        // false positives on the very first interaction.
-        const exchangeCount = Math.floor(recentMessages.length / 2);
-        if (exchangeCount >= 2) {
-          const contextWindow = recentMessages.slice(-6);
-          const conversationText = contextWindow
-            .map((m) => `${m.role === 'user' ? 'Usuário' : 'Acordito'}: ${m.content}`)
-            .join('\n');
-
-          const evaluationPrompt =
-            `Objetivo da missão: "${missionSnapshot.title}"\nDescrição: ${missionSnapshot.objective || missionSnapshot.badge}\n\n` +
-            `Conversa recente:\n${conversationText}\n\n` +
-            `O objetivo da missão foi alcançado com base na conversa acima? Responda apenas SIM ou NÃO.`;
-
-          generateChatResponseWithOpenAI(
-            evaluationPrompt,
-            [],
-            'Você é um avaliador de missões de treinamento de IA. Avalie se o objetivo foi cumprido com base no conteúdo da conversa. Responda APENAS com SIM ou NÃO, sem nenhuma outra palavra.',
-          )
-            .then((verdict) => {
-              const normalised = verdict.trim().toUpperCase();
-              if (normalised.startsWith('SIM') || normalised.startsWith('YES')) {
-                completeMissionProgressAsync(userId, {
-                  id: missionSnapshot.id,
-                  xp: missionSnapshot.xp,
-                  badge: missionSnapshot.badge,
-                  savedMinutes: missionSnapshot.savedMinutes,
-                }).catch(() => {});
-                setCompletedMission(missionSnapshot);
-                setShowMissionModal(true);
-                setMissionRewardToast(`+${missionSnapshot.xp} XP ganhos • Medalha ${missionSnapshot.badge}`);
-                setActiveMission(null);
-              }
-            })
-            .catch(() => {});
-        }
-      }
-
       await appendConversationMessage(
         conversationId,
         'assistant',
@@ -593,14 +495,6 @@ export const Generator = () => {
   };
 
   return (
-    <>
-    <MissionCompleteModal
-      isOpen={showMissionModal}
-      xp={completedMission?.xp ?? 0}
-      badge={completedMission?.badge ?? ''}
-      missionTitle={completedMission?.title ?? ''}
-      onClose={() => setShowMissionModal(false)}
-    />
     <div className="-m-4 flex h-full min-h-0 flex-1 overflow-hidden bg-background text-foreground md:-m-8">
       <aside className="hidden w-72 shrink-0 border-r border-border p-4 md:flex md:flex-col">
         <button
@@ -636,7 +530,6 @@ export const Generator = () => {
                 <button
                   onClick={() => {
                     setIsStartingNewConversation(false);
-                    setActiveMission(null);
                     setSelectedConversationId(conversation.id);
                   }}
                   className="min-w-0 flex-1 text-left"
@@ -731,17 +624,6 @@ export const Generator = () => {
               </div>
 
               <div className="flex items-center gap-2 self-start md:self-auto">
-                {activeMission && (
-                  <div className="flex items-center gap-2 rounded-xl border border-white/15 bg-black/20 px-3 py-2">
-                    <span className="relative flex h-2.5 w-2.5">
-                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange-400 opacity-75" />
-                      <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-orange-400" />
-                    </span>
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-white/60">
-                      Missão ativa
-                    </span>
-                  </div>
-                )}
                 <a
                   href="https://ddmcreator.vercel.app/#home"
                   target="_blank"
@@ -778,15 +660,6 @@ export const Generator = () => {
                     transition={{ duration: 3.2, repeat: Infinity, ease: 'linear' }}
                   />
                 </div>
-              )}
-              {missionRewardToast && (
-                <motion.div
-                  initial={{ opacity: 0, y: 18 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="mx-auto mb-5 max-w-xl rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-center text-sm font-semibold text-emerald-200 shadow-[0_12px_35px_rgba(16,185,129,0.18)]"
-                >
-                  {missionRewardToast}
-                </motion.div>
               )}
 
               {messages.length === 0 ? (
@@ -1245,6 +1118,5 @@ export const Generator = () => {
         </div>
       </main>
     </div>
-    </>
   );
 };

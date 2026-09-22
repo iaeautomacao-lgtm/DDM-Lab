@@ -9,7 +9,6 @@ const routeTitles: Record<string, { title: string; subtitle: string }> = {
   '/': { title: 'Dashboard', subtitle: 'Visao geral da plataforma' },
   '/generator': { title: 'Criar Pedido', subtitle: 'Monte seu prompt ideal' },
   '/library': { title: 'Modelos Prontos', subtitle: 'Templates por setor' },
-  '/ias': { title: 'Central de IAs', subtitle: 'Ecossistema de ferramentas' },
   '/settings': { title: 'Configuracoes', subtitle: 'Uso responsavel e preferencias' },
   '/admin': { title: 'Administracao', subtitle: 'Painel de controle' },
   '/ddmcreator': { title: 'DDM Creator', subtitle: 'Criacao de imagens com IA' },

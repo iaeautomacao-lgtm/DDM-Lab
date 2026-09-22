@@ -493,11 +493,13 @@ const migratePrompts = async () => {
 };
 
 // ══════════════════════════════════════════════════════════════════════════
-// Etapa: agent_configs, app_config, knowledge_base_docs, user_progress, sugestoes
+// Etapa: agent_configs, app_config, knowledge_base_docs, sugestoes
 // ══════════════════════════════════════════════════════════════════════════
+// user_progress (missoes/XP/badges) nao migra — a feature Cases IA que
+// alimentava essa tabela foi removida do app.
 
 const migrateMisc = async () => {
-  console.log("\n== agent_configs / app_config / knowledge_base_docs / user_progress / sugestoes ==");
+  console.log("\n== agent_configs / app_config / knowledge_base_docs / sugestoes ==");
 
   const agentConfigs = await fetchTable("agent_configs");
   for (const row of agentConfigs) {
@@ -530,17 +532,6 @@ const migrateMisc = async () => {
     );
   }
 
-  const progress = await fetchTable("user_progress");
-  for (const row of progress) {
-    if (!row.user_id) continue;
-    await run(
-      `INSERT INTO user_progress (user_id, completed_mission_ids, total_xp, saved_minutes, badges, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE completed_mission_ids = VALUES(completed_mission_ids)`,
-      [row.user_id, asJson(row.completed_mission_ids), row.total_xp || 0, row.saved_minutes || 0, asJson(row.badges), toDatetime(row.updated_at) || new Date()],
-    );
-  }
-
   const sugestoes = await fetchTable("sugestoes");
   for (const row of sugestoes) {
     await run(
@@ -558,7 +549,7 @@ const migrateMisc = async () => {
   }
 
   console.log(
-    `  migrados: ${agentConfigs.length} agent_configs, ${appConfig.length} app_config, ${kbDocs.length} kb_docs, ${progress.length} progress, ${sugestoes.length} sugestoes`,
+    `  migrados: ${agentConfigs.length} agent_configs, ${appConfig.length} app_config, ${kbDocs.length} kb_docs, ${sugestoes.length} sugestoes`,
   );
 };
 

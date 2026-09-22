@@ -7,82 +7,12 @@ import {
   Building2,
   Users,
   Target,
-  Zap,
   Save,
-  Trophy,
   Lock,
 } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
-import { getMissionProgressAsync, getMissionRankLabel } from '../lib/missionProgress';
-
-const BADGE_CATALOG = [
-  // RH
-  { id: 'rh-olhar-de-aguia',              badgeName: 'Recrutador Ágil',         sector: 'RH',           xp: 40, emoji: '🦅', color: '#F97316' },
-  { id: 'rh-entrevistador',               badgeName: 'Caçador de Talentos',     sector: 'RH',           xp: 40, emoji: '🎯', color: '#F97316' },
-  { id: 'rh-comunicador',                 badgeName: 'Embaixador Interno',      sector: 'RH',           xp: 35, emoji: '📢', color: '#F97316' },
-  { id: 'rh-avaliador',                   badgeName: 'Arquiteto de Pessoas',    sector: 'RH',           xp: 60, emoji: '🏗️', color: '#F97316' },
-  { id: 'rh-mediador',                    badgeName: 'Gestor de Conflitos',     sector: 'RH',           xp: 60, emoji: '🕊️', color: '#F97316' },
-  // Juridico
-  { id: 'juridico-descodificador',        badgeName: 'Guardião da Clareza',     sector: 'Juridico',     xp: 40, emoji: '⚖️', color: '#0EA5E9' },
-  { id: 'juridico-sintetizador-legal',    badgeName: 'Tradutor Jurídico',       sector: 'Juridico',     xp: 40, emoji: '📋', color: '#0EA5E9' },
-  { id: 'juridico-redator',               badgeName: 'Voz do Direito',          sector: 'Juridico',     xp: 60, emoji: '🖊️', color: '#0EA5E9' },
-  { id: 'juridico-analisador',            badgeName: 'Guardião Contratual',     sector: 'Juridico',     xp: 80, emoji: '🛡️', color: '#0EA5E9' },
-  { id: 'juridico-argumentador',          badgeName: 'Defensor Estratégico',    sector: 'Juridico',     xp: 60, emoji: '📖', color: '#0EA5E9' },
-  // Financeiro
-  { id: 'financeiro-alquimista',          badgeName: 'Mestre das Planilhas',    sector: 'Financeiro',   xp: 60, emoji: '📊', color: '#10B981' },
-  { id: 'financeiro-analisador',          badgeName: 'Intérprete dos Números',  sector: 'Financeiro',   xp: 60, emoji: '📈', color: '#10B981' },
-  { id: 'financeiro-projetor',            badgeName: 'Arquiteto do Caixa',      sector: 'Financeiro',   xp: 80, emoji: '💰', color: '#10B981' },
-  { id: 'financeiro-auditor',             badgeName: 'Fiscal Digital',          sector: 'Financeiro',   xp: 40, emoji: '🔍', color: '#10B981' },
-  { id: 'financeiro-negociador',          badgeName: 'Mestre da Regularização', sector: 'Financeiro',   xp: 60, emoji: '💼', color: '#10B981' },
-  // Backoffice
-  { id: 'backoffice-sintetizador',        badgeName: 'Filtro de Elite',         sector: 'Backoffice',   xp: 35, emoji: '⚙️', color: '#D946EF' },
-  { id: 'backoffice-organizador',         badgeName: 'Arquivista de Processos', sector: 'Backoffice',   xp: 40, emoji: '🗂️', color: '#D946EF' },
-  { id: 'backoffice-redator-tecnico',     badgeName: 'Criador de Manuais',      sector: 'Backoffice',   xp: 60, emoji: '📝', color: '#D946EF' },
-  { id: 'backoffice-analista',            badgeName: 'Destilador de Dados',     sector: 'Backoffice',   xp: 40, emoji: '🔬', color: '#D946EF' },
-  { id: 'backoffice-gestor-tempo',        badgeName: 'Mestre da Prioridade',    sector: 'Backoffice',   xp: 35, emoji: '⏱️', color: '#D946EF' },
-  // Planejamento
-  { id: 'planejamento-arquiteto',         badgeName: 'Visionário Estratégico',  sector: 'Planejamento', xp: 60, emoji: '🏛️', color: '#8B5CF6' },
-  { id: 'planejamento-estrategista',      badgeName: 'Arquiteto de OKRs',       sector: 'Planejamento', xp: 80, emoji: '🎯', color: '#8B5CF6' },
-  { id: 'planejamento-analista-cenarios', badgeName: 'Antecipador de Riscos',   sector: 'Planejamento', xp: 60, emoji: '⚠️', color: '#8B5CF6' },
-  { id: 'planejamento-definidor',         badgeName: 'Precisão Estratégica',    sector: 'Planejamento', xp: 40, emoji: '💡', color: '#8B5CF6' },
-  { id: 'planejamento-narrador',          badgeName: 'Contador de Resultados',  sector: 'Planejamento', xp: 60, emoji: '🎙️', color: '#8B5CF6' },
-  // Operacoes
-  { id: 'operacoes-maestro',              badgeName: 'Eficiência Máxima',       sector: 'Operacoes',    xp: 40, emoji: '✅', color: '#06B6D4' },
-  { id: 'operacoes-otimizador',           badgeName: 'Caçador de Gargalos',     sector: 'Operacoes',    xp: 60, emoji: '🔧', color: '#06B6D4' },
-  { id: 'operacoes-padronizador',         badgeName: 'Guardião do Padrão',      sector: 'Operacoes',    xp: 60, emoji: '📐', color: '#06B6D4' },
-  { id: 'operacoes-monitor',              badgeName: 'Arquiteto de KPIs',       sector: 'Operacoes',    xp: 40, emoji: '📊', color: '#06B6D4' },
-  { id: 'operacoes-treinador',            badgeName: 'Formador de Times',       sector: 'Operacoes',    xp: 40, emoji: '👥', color: '#06B6D4' },
-  // Comercial
-  { id: 'comercial-persuasivo',           badgeName: 'Fechador de Deals',       sector: 'Comercial',    xp: 60, emoji: '🤝', color: '#F59E0B' },
-  { id: 'comercial-pitchador',            badgeName: 'Mestre do Pitch',         sector: 'Comercial',    xp: 40, emoji: '🎤', color: '#F59E0B' },
-  { id: 'comercial-negociador',           badgeName: 'Arquiteto de Propostas',  sector: 'Comercial',    xp: 60, emoji: '📄', color: '#F59E0B' },
-  { id: 'comercial-seguidor',             badgeName: 'Rei do Follow-up',        sector: 'Comercial',    xp: 35, emoji: '👑', color: '#F59E0B' },
-  { id: 'comercial-analisador',           badgeName: 'Destruidor de Objeções',  sector: 'Comercial',    xp: 60, emoji: '🛡️', color: '#F59E0B' },
-  // Marketing
-  { id: 'marketing-criativo',             badgeName: 'Mestre do Conteúdo',      sector: 'Marketing',    xp: 40, emoji: '✨', color: '#EC4899' },
-  { id: 'marketing-estrategista',         badgeName: 'Planejador de Conteúdo',  sector: 'Marketing',    xp: 60, emoji: '📅', color: '#EC4899' },
-  { id: 'marketing-copywriter',           badgeName: 'Alquimista de Palavras',  sector: 'Marketing',    xp: 60, emoji: '✍️', color: '#EC4899' },
-  { id: 'marketing-analista-marca',       badgeName: 'Detetive de Marcas',      sector: 'Marketing',    xp: 60, emoji: '🔎', color: '#EC4899' },
-  { id: 'marketing-roteirista',           badgeName: 'Diretor de Conteúdo',     sector: 'Marketing',    xp: 40, emoji: '🎬', color: '#EC4899' },
-];
-
-const normalizeDepartmentToMissionSector = (department?: string) => {
-  const normalized = String(department || '')
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase();
-  if (normalized.includes('jur')) return 'Juridico';
-  if (normalized.includes('mark')) return 'Marketing';
-  if (normalized.includes('finan')) return 'Financeiro';
-  if (normalized.includes('planej')) return 'Planejamento';
-  if (normalized.includes('oper')) return 'Operacoes';
-  if (normalized.includes('comercial') || normalized.includes('vend')) return 'Comercial';
-  if (normalized.includes('back')) return 'Backoffice';
-  if (normalized.includes('rh')) return 'RH';
-  return null;
-};
 
 const AVAILABLE_AVATARS = [
   'Acordito de Notebook Masculino - Escrit\u00f3rio.png',
@@ -109,7 +39,7 @@ const SECTOR_OPTIONS = [
 ];
 
 export const Profile = () => {
-  const { profile, updateProfile, user } = useAuth();
+  const { profile, updateProfile } = useAuth();
   const [preferredName, setPreferredName] = useState('');
   const [jobTitle, setJobTitle] = useState('');
   const [department, setDepartment] = useState('');
@@ -119,8 +49,6 @@ export const Profile = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState('');
-  const [earnedBadges, setEarnedBadges] = useState<string[]>([]);
-  const [missionXp, setMissionXp] = useState(0);
 
   useEffect(() => {
     setPreferredName(profile?.preferredName || '');
@@ -130,18 +58,6 @@ export const Profile = () => {
     setFocusArea('Automacao de Campanhas B2B');
     setAvatarUrl(profile?.avatarUrl || AVAILABLE_AVATARS[0].url);
   }, [profile]);
-
-  useEffect(() => {
-    if (!user) return;
-    getMissionProgressAsync(user.id).then((snap) => {
-      setEarnedBadges(snap.badges);
-      setMissionXp(snap.totalXp);
-    }).catch(() => {});
-  }, [user]);
-
-  const userSector = normalizeDepartmentToMissionSector(profile?.department);
-  const displayedBadges = userSector ? BADGE_CATALOG.filter((b) => b.sector === userSector) : BADGE_CATALOG;
-  const earnedInSector = displayedBadges.filter((b) => earnedBadges.includes(b.badgeName)).length;
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -355,95 +271,6 @@ export const Profile = () => {
         </Card>
       </section>
 
-      {/* Badges Section */}
-      <section className="space-y-4">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-yellow-500/10 text-yellow-400">
-              <Trophy size={20} />
-            </div>
-            <div>
-              <h3 className="text-xl font-bold">Minhas Conquistas</h3>
-              <p className="text-xs text-text-secondary">
-                {userSector
-                  ? `${earnedInSector} de ${displayedBadges.length} conquistas do setor`
-                  : `${earnedBadges.length} de ${BADGE_CATALOG.length} badges desbloqueados`}
-              </p>
-            </div>
-          </div>
-          {missionXp > 0 && (
-            <div className="flex items-center gap-2 rounded-xl border border-primary/20 bg-primary/10 px-4 py-2">
-              <Zap size={14} className="text-primary" />
-              <span className="text-sm font-bold text-primary">{missionXp} XP</span>
-              <span className="text-xs text-text-secondary">· {getMissionRankLabel(missionXp)}</span>
-            </div>
-          )}
-        </div>
-
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-5">
-          {displayedBadges.map((badge) => {
-            const isEarned = earnedBadges.includes(badge.badgeName);
-            return (
-              <div
-                key={badge.id}
-                className="relative flex flex-col items-center gap-3 rounded-2xl border p-5 text-center transition-all duration-200"
-                style={
-                  isEarned
-                    ? {
-                        background: 'rgba(255,215,0,0.06)',
-                        border: '1px solid rgba(255,215,0,0.25)',
-                        boxShadow: '0 0 20px rgba(255,215,0,0.08)',
-                      }
-                    : {
-                        background: 'rgba(255,255,255,0.02)',
-                        border: '1px solid rgba(255,255,255,0.06)',
-                      }
-                }
-              >
-                {!isEarned && (
-                  <div className="absolute right-3 top-3 text-white/20">
-                    <Lock size={12} />
-                  </div>
-                )}
-
-                <div
-                  className="relative flex h-16 w-16 items-center justify-center rounded-full text-2xl"
-                  style={
-                    isEarned
-                      ? { background: `${badge.color}18`, border: `1.5px solid ${badge.color}40` }
-                      : { background: 'rgba(255,255,255,0.04)', border: '1.5px solid rgba(255,255,255,0.08)' }
-                  }
-                >
-                  <span style={isEarned ? {} : { filter: 'grayscale(1)', opacity: 0.3 }}>{badge.emoji}</span>
-                  {isEarned && (
-                    <div
-                      className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full text-[10px]"
-                      style={{ background: '#FFD700', color: '#000' }}
-                    >
-                      ✓
-                    </div>
-                  )}
-                </div>
-
-                <div className="space-y-0.5">
-                  <p
-                    className="text-xs font-bold leading-tight"
-                    style={{ color: isEarned ? '#fff' : 'rgba(255,255,255,0.25)' }}
-                  >
-                    {badge.badgeName}
-                  </p>
-                  <p className="text-[10px]" style={{ color: isEarned ? badge.color : 'rgba(255,255,255,0.15)' }}>
-                    {badge.sector}
-                  </p>
-                  <p className="text-[10px]" style={{ color: isEarned ? 'rgba(255,215,0,0.7)' : 'rgba(255,255,255,0.12)' }}>
-                    {badge.xp} XP
-                  </p>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </section>
     </div>
   );
 };

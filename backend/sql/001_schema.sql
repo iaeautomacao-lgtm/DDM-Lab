@@ -279,17 +279,6 @@ CREATE TABLE IF NOT EXISTS creator_images (
   CONSTRAINT fk_creator_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS user_progress (
-  user_id              CHAR(36) NOT NULL PRIMARY KEY,
-  completed_mission_ids JSON    NULL,
-  total_xp             INT UNSIGNED NOT NULL DEFAULT 0,
-  saved_minutes        INT UNSIGNED NOT NULL DEFAULT 0,
-  badges               JSON     NULL,
-  updated_at           DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
-                                   ON UPDATE CURRENT_TIMESTAMP(3),
-  CONSTRAINT fk_progress_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
 CREATE TABLE IF NOT EXISTS sugestoes (
   id         CHAR(36)     NOT NULL PRIMARY KEY,
   user_id    CHAR(36)     NULL,

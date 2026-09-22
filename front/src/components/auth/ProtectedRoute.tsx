@@ -4,11 +4,10 @@ import { useAuth } from '../../lib/AuthContext';
 
 interface ProtectedRouteProps {
   requireAdmin?: boolean;
-  requireRH?: boolean;
 }
 
-export const ProtectedRoute = ({ requireAdmin = false, requireRH = false }: ProtectedRouteProps) => {
-  const { user, loading, isAdmin, isRH } = useAuth();
+export const ProtectedRoute = ({ requireAdmin = false }: ProtectedRouteProps) => {
+  const { user, loading, isAdmin } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -20,16 +19,11 @@ export const ProtectedRoute = ({ requireAdmin = false, requireRH = false }: Prot
   }
 
   if (!user) {
-    if (requireRH) return <Navigate to="/rh-login" replace state={{ from: location }} />;
     return <Navigate to="/login" replace state={{ from: location }} />;
   }
 
   if (requireAdmin && !isAdmin) {
     return <Navigate to="/" replace />;
-  }
-
-  if (requireRH && !isRH && !isAdmin) {
-    return <Navigate to="/rh-login" replace />;
   }
 
   return <Outlet />;

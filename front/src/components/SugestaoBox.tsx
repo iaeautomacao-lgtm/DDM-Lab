@@ -108,7 +108,7 @@ export const SugestaoBox: React.FC = () => {
 
   return (
     <>
-      {/* Floating trigger — bottom-left avoids RHBalloon/ChatAssistant (right side).
+      {/* Floating trigger — bottom-left.
           md:bottom-36 clears sidebar footer (profile card + logout ~130px). */}
       <AnimatePresence>
         {panelState === 'idle' && (

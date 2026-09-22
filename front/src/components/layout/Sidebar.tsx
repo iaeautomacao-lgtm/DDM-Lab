@@ -3,17 +3,13 @@ import {
   LayoutDashboard,
   Sparkles,
   Library,
-  Briefcase,
   Settings,
-  Zap,
   ChevronLeft,
   ChevronRight,
   LogOut,
   ShieldCheck,
   User,
-  Users,
   ImagePlus,
-  Rss,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Logo } from '../ui/Logo';
@@ -22,9 +18,7 @@ import { useAuth } from '../../lib/AuthContext';
 const navItems: Array<{ icon: React.ElementType; label: string; path: string; adminOnly?: boolean }> = [
   { icon: LayoutDashboard, label: 'Inicio', path: '/' },
   { icon: Sparkles, label: 'Criar Pedido', path: '/generator' },
-  { icon: Briefcase, label: 'Cases IA', path: '/cases' },
   { icon: Library, label: 'Modelos Prontos', path: '/library' },
-  { icon: Zap, label: 'IAs', path: '/ias' },
   { icon: ImagePlus, label: 'DDM Creator', path: '/ddmcreator' },
   { icon: User, label: 'Meu Perfil', path: '/profile' },
   { icon: Settings, label: 'Uso Responsavel', path: '/settings' },
@@ -36,7 +30,7 @@ interface SidebarProps {
 }
 
 export const Sidebar = ({ isCollapsed, onToggle }: SidebarProps) => {
-  const { logout, profile, isAdmin, isRH } = useAuth();
+  const { logout, profile, isAdmin } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
@@ -136,23 +130,6 @@ export const Sidebar = ({ isCollapsed, onToggle }: SidebarProps) => {
               icon={ShieldCheck}
               label="Painel Admin"
               path="/admin"
-            />
-          </>
-        )}
-
-        {(isRH || isAdmin) && (
-          <>
-            {!isCollapsed && (
-              <p className="mb-2 mt-4 px-3 text-[10px] font-bold uppercase tracking-widest text-text-secondary">
-                RH
-              </p>
-            )}
-            {isCollapsed && <div className="my-2 border-t border-border" />}
-            <AdminNavItem
-              isCollapsed={isCollapsed}
-              icon={Users}
-              label="Painel RH"
-              path="/rh"
             />
           </>
         )}

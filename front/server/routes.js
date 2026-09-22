@@ -1222,64 +1222,6 @@ router.delete(
 );
 
 // ══════════════════════════════════════════════════════════════════════════
-// Progresso de missoes
-// ══════════════════════════════════════════════════════════════════════════
-
-router.get(
-  "/progress",
-  requireAuth,
-  h(async (req, res) => {
-    const row = await db.queryOne(`SELECT * FROM user_progress WHERE user_id = ?`, [req.user.id]);
-    res.json({
-      progress: row
-        ? {
-            completedMissionIds: row.completed_mission_ids || [],
-            totalXp: row.total_xp || 0,
-            savedMinutes: row.saved_minutes || 0,
-            badges: row.badges || [],
-          }
-        : null,
-    });
-  }),
-);
-
-router.put(
-  "/progress",
-  requireAuth,
-  h(async (req, res) => {
-    const { completedMissionIds, totalXp, savedMinutes, badges } = req.body || {};
-    await db.exec(
-      `INSERT INTO user_progress (user_id, completed_mission_ids, total_xp, saved_minutes, badges)
-       VALUES (?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE
-         completed_mission_ids = VALUES(completed_mission_ids),
-         total_xp = VALUES(total_xp),
-         saved_minutes = VALUES(saved_minutes),
-         badges = VALUES(badges),
-         updated_at = NOW()`,
-      [req.user.id, JSON.stringify(completedMissionIds || []), totalXp || 0, savedMinutes || 0, JSON.stringify(badges || [])],
-    );
-    res.json({ ok: true });
-  }),
-);
-
-router.get(
-  "/progress/sector-ranking",
-  requireAuth,
-  h(async (req, res) => {
-    // Substitui a RPC get_sector_ranking do Supabase: conta, por missao,
-    // quantos usuarios distintos a concluiram (completed_mission_ids e JSON).
-    const rows = await db.query(
-      `SELECT jt.mission_id, COUNT(DISTINCT up.user_id) AS completion_count
-       FROM user_progress up,
-            JSON_TABLE(up.completed_mission_ids, '$[*]' COLUMNS (mission_id VARCHAR(120) PATH '$')) AS jt
-       GROUP BY jt.mission_id`,
-    );
-    res.json({ rows });
-  }),
-);
-
-// ══════════════════════════════════════════════════════════════════════════
 // Uso diario (cota de IA)
 // ══════════════════════════════════════════════════════════════════════════
 
