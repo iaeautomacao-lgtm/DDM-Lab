@@ -1,15 +1,13 @@
+import "./server/loadEnv.js"; // precisa ser o primeiro import — ver o comentario no arquivo
 import express from "express";
 import path from "path";
 import helmet from "helmet";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
-import dotenv from "dotenv";
 import { db } from "./server/db.js";
 import { requireAuth } from "./server/authCore.js";
 import apiRoutes from "./server/routes.js";
-
-dotenv.config({ path: path.resolve(process.cwd(), "../backend/.env.local") });
 
 const app = express();
 const PORT = Number(process.env.PORT || 3001);
