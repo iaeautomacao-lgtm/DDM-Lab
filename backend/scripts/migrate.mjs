@@ -48,6 +48,22 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const SUPABASE_DB_URL = process.env.SUPABASE_DB_URL || null;
 
+// Parametros separados evitam ter que URL-encodar a senha do Postgres (que
+// pode ter @, /, ' etc.) dentro de uma connection string. Preferidos sobre
+// SUPABASE_DB_URL quando presentes.
+const pgConfig = process.env.SUPABASE_DB_HOST
+  ? {
+      host: process.env.SUPABASE_DB_HOST,
+      port: Number(process.env.SUPABASE_DB_PORT || 5432),
+      database: process.env.SUPABASE_DB_NAME || "postgres",
+      user: process.env.SUPABASE_DB_USER,
+      password: process.env.SUPABASE_DB_PASSWORD,
+      ssl: { rejectUnauthorized: false }, // Supabase exige SSL; CA propria nao esta no store padrao do Node
+    }
+  : SUPABASE_DB_URL
+    ? { connectionString: SUPABASE_DB_URL, ssl: { rejectUnauthorized: false } }
+    : null;
+
 if (!SUPABASE_URL || !SERVICE_KEY) {
   console.error("FATAL: defina SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY em backend/.env.local.");
   process.exit(1);
@@ -158,10 +174,10 @@ const migrateUsers = async () => {
   console.log("\n== users ==");
 
   let authUsers = [];
-  if (SUPABASE_DB_URL) {
-    const client = new pg.Client({ connectionString: SUPABASE_DB_URL });
-    await client.connect();
+  if (pgConfig) {
+    const client = new pg.Client(pgConfig);
     try {
+      await client.connect();
       const { rows } = await client.query(
         `SELECT id, email, encrypted_password, created_at, last_sign_in_at, raw_user_meta_data
          FROM auth.users
@@ -169,8 +185,11 @@ const migrateUsers = async () => {
             OR email = ANY (ARRAY[${RH_EMAILS.map((e) => `'${e}'`).join(",") || "'-'"}])`,
       );
       authUsers = rows;
+    } catch (err) {
+      console.error(`  falha ao conectar/consultar o Postgres direto: ${err.message}`);
+      console.error("  seguindo sem hash de senha — usuarios vao precisar de 'Esqueci minha senha'.");
     } finally {
-      await client.end();
+      await client.end().catch(() => {});
     }
     console.log(`  auth.users (Postgres direto): ${authUsers.length} linhas dentro do dominio DDM.`);
   } else {
@@ -660,7 +679,7 @@ const STEPS = [
 const main = async () => {
   console.log(`Migracao Supabase -> MariaDB ${DRY_RUN ? "(DRY RUN — nada sera gravado)" : ""}`);
   console.log(`Supabase: ${SUPABASE_URL}`);
-  console.log(`Postgres direto (auth.users): ${SUPABASE_DB_URL ? "configurado" : "NAO configurado"}`);
+  console.log(`Postgres direto (auth.users): ${pgConfig ? "configurado" : "NAO configurado"}`);
 
   for (const [name, fn] of STEPS) {
     if (ONLY && ONLY !== name) continue;
