@@ -541,52 +541,78 @@ const migrateMisc = async () => {
 
 const BUCKETS = ["creator-images", "rh-arquivos"];
 
+/**
+ * Lista um bucket do Supabase Storage recursivamente. A API so lista um
+ * nivel por vez — uma entrada com metadata=null e sempre uma PASTA, nunca um
+ * arquivo vazio (confirmado: creator-images guarda em `<userId>/<arquivo>`,
+ * entao listar so a raiz retorna pastas de usuario, nao os arquivos).
+ */
+const listBucketRecursive = async (bucket, prefix = "", depth = 0) => {
+  if (depth > 6) return []; // trava de seguranca contra recursao infinita
+
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/list/${bucket}`, {
+    method: "POST",
+    headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ limit: 10000, prefix }),
+  });
+
+  if (!res.ok) {
+    if (depth === 0) console.warn(`  bucket '${bucket}' inacessivel (${res.status}) — pulando.`);
+    return [];
+  }
+
+  const entries = await res.json();
+  const files = [];
+
+  for (const entry of entries) {
+    if (!entry.name) continue;
+    const fullPath = prefix ? `${prefix}/${entry.name}` : entry.name;
+
+    if (entry.id === null && entry.metadata === null) {
+      // pasta — desce um nivel
+      files.push(...(await listBucketRecursive(bucket, fullPath, depth + 1)));
+    } else {
+      files.push({ path: fullPath, metadata: entry.metadata });
+    }
+  }
+
+  return files;
+};
+
 const migrateStorage = async () => {
   console.log("\n== storage (arquivos) ==");
 
   for (const bucket of BUCKETS) {
-    const listRes = await fetch(`${SUPABASE_URL}/storage/v1/object/list/${bucket}`, {
-      method: "POST",
-      headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ limit: 10000, prefix: "" }),
-    });
-
-    if (!listRes.ok) {
-      console.warn(`  bucket '${bucket}' inacessivel (${listRes.status}) — pulando.`);
-      continue;
-    }
-
-    const objects = await listRes.json();
-    console.log(`  ${bucket}: ${objects.length} objetos`);
+    const files = await listBucketRecursive(bucket);
+    console.log(`  ${bucket}: ${files.length} arquivos`);
     await fs.mkdir(path.join(STORAGE_ROOT, bucket), { recursive: true });
 
-    for (const obj of objects) {
-      if (!obj.name) continue; // pasta, nao arquivo
-      const oldPublicUrl = `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${obj.name}`;
+    for (const file of files) {
+      const oldPublicUrl = `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${file.path}`;
 
-      const fileRes = await fetch(`${SUPABASE_URL}/storage/v1/object/${bucket}/${obj.name}`, {
+      const fileRes = await fetch(`${SUPABASE_URL}/storage/v1/object/${bucket}/${file.path}`, {
         headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` },
       });
       if (!fileRes.ok) {
-        console.warn(`    falha ao baixar ${bucket}/${obj.name}: ${fileRes.status}`);
+        console.warn(`    falha ao baixar ${bucket}/${file.path}: ${fileRes.status}`);
         continue;
       }
 
       const buffer = Buffer.from(await fileRes.arrayBuffer());
       const id = uuid();
-      const ext = path.extname(obj.name);
+      const ext = path.extname(file.path);
       const storageKey = `${id}${ext}`;
 
       if (!DRY_RUN) {
         await fs.writeFile(path.join(STORAGE_ROOT, bucket, storageKey), buffer);
       }
 
-      const mimeType = obj.metadata?.mimetype || "application/octet-stream";
+      const mimeType = file.metadata?.mimetype || "application/octet-stream";
       await run(
         `INSERT INTO stored_files (id, bucket, storage_key, original_name, mime_type, size_bytes, owner_id)
          VALUES (?, ?, ?, ?, ?, ?, NULL)
          ON DUPLICATE KEY UPDATE id = id`,
-        [id, bucket, storageKey, obj.name, mimeType, buffer.length],
+        [id, bucket, storageKey, file.path, mimeType, buffer.length],
       );
 
       storageUrlMap.set(oldPublicUrl, `/api/files/${id}`);
