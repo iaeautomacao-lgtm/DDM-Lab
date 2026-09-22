@@ -1,4 +1,4 @@
-import { supabase } from './supabaseClient';
+import { api } from './apiClient';
 
 export interface MissionProgressSnapshot {
   completedMissionIds: string[];
@@ -50,46 +50,28 @@ const writeLocal = (userId: string, snapshot: MissionProgressSnapshot) => {
   } catch {}
 };
 
-// ── Supabase ──────────────────────────────────────────────────────────────────
+// ── API ────────────────────────────────────────────────────────────────────
 
-const upsertProgress = async (userId: string, snapshot: MissionProgressSnapshot) => {
-  const { error } = await supabase.from('user_progress').upsert(
-    {
-      user_id: userId,
-      completed_mission_ids: snapshot.completedMissionIds,
-      total_xp: snapshot.totalXp,
-      saved_minutes: snapshot.savedMinutes,
-      badges: snapshot.badges,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: 'user_id' },
-  );
-  if (error) throw error;
+const upsertProgress = async (snapshot: MissionProgressSnapshot) => {
+  await api.put('/progress', {
+    completedMissionIds: snapshot.completedMissionIds,
+    totalXp: snapshot.totalXp,
+    savedMinutes: snapshot.savedMinutes,
+    badges: snapshot.badges,
+  });
 };
 
 /**
- * Busca progresso do Supabase. Faz migração do localStorage se for o primeiro acesso.
+ * Busca progresso da API. Faz migração do localStorage se for o primeiro acesso.
  * Em caso de erro de rede, retorna dados do localStorage.
  */
 export const getMissionProgressAsync = async (userId: string): Promise<MissionProgressSnapshot> => {
   try {
-    const { data, error } = await supabase
-      .from('user_progress')
-      .select('completed_mission_ids, total_xp, saved_minutes, badges')
-      .eq('user_id', userId)
-      .maybeSingle();
+    const { progress } = await api.get<{ progress: MissionProgressSnapshot | null }>('/progress');
 
-    if (error) throw error;
-
-    if (data) {
-      const snapshot: MissionProgressSnapshot = {
-        completedMissionIds: data.completed_mission_ids || [],
-        totalXp: data.total_xp || 0,
-        savedMinutes: data.saved_minutes || 0,
-        badges: data.badges || [],
-      };
-      writeLocal(userId, snapshot);
-      return snapshot;
+    if (progress) {
+      writeLocal(userId, progress);
+      return progress;
     }
 
     // Sem registro no DB (ex: após reset admin) — limpa cache local e retorna vazio
@@ -101,7 +83,7 @@ export const getMissionProgressAsync = async (userId: string): Promise<MissionPr
 };
 
 /**
- * Registra conclusão de missão no Supabase (e localStorage como backup).
+ * Registra conclusão de missão na API (e localStorage como backup).
  * Idempotente — ignora se a missão já foi concluída.
  */
 export const completeMissionProgressAsync = async (
@@ -120,7 +102,7 @@ export const completeMissionProgressAsync = async (
   };
 
   writeLocal(userId, next); // salva imediatamente no localStorage
-  await upsertProgress(userId, next).catch(() => {}); // persiste no Supabase (fail-safe)
+  await upsertProgress(next).catch(() => {}); // persiste na API (fail-safe)
 
   return next;
 };
@@ -157,18 +139,18 @@ export interface SectorRankingEntry {
 }
 
 /**
- * Busca do Supabase o ranking coletivo de setores (todos os colaboradores).
- * Requer a função RPC `get_sector_ranking` criada no banco.
+ * Busca da API o ranking coletivo de setores (todos os colaboradores).
  * @param missions lista de missões com id e sector para fazer o mapeamento
  */
 export const fetchGlobalSectorRanking = async (
   missions: Array<{ id: string; sector: string }>,
 ): Promise<SectorRankingEntry[]> => {
-  const { data, error } = await supabase.rpc('get_sector_ranking');
-  if (error) throw error;
+  const { rows } = await api.get<{ rows: Array<{ mission_id: string; completion_count: number }> }>(
+    '/progress/sector-ranking',
+  );
 
   const countByMission: Record<string, number> = {};
-  for (const row of (data || []) as Array<{ mission_id: string; completion_count: number }>) {
+  for (const row of rows) {
     countByMission[row.mission_id] = Number(row.completion_count);
   }
 

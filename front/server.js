@@ -2,8 +2,12 @@ import express from "express";
 import path from "path";
 import helmet from "helmet";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import dotenv from "dotenv";
+import { db } from "./server/db.js";
+import { requireAuth } from "./server/authCore.js";
+import apiRoutes from "./server/routes.js";
 
 dotenv.config({ path: path.resolve(process.cwd(), "../backend/.env.local") });
 
@@ -11,17 +15,23 @@ const app = express();
 const PORT = Number(process.env.PORT || 3001);
 const distPath = path.join(process.cwd(), "dist");
 
-const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || "";
-
-// Fail fast: sem estas envs o gate de autenticacao nao funciona e o proxy de IA
-// ficaria aberto. Melhor nao subir do que subir sem protecao.
-if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-  console.error("FATAL: SUPABASE_URL/SUPABASE_ANON_KEY ausentes. Servidor nao vai subir.");
+// Fail fast: sem banco ou sem segredo de JWT o app nao tem como autenticar
+// ninguem. Melhor nao subir do que subir com auth quebrada.
+if (!process.env.DB_HOST || !process.env.DB_USER || !process.env.DB_NAME) {
+  console.error("FATAL: DB_HOST/DB_USER/DB_NAME ausentes. Servidor nao vai subir.");
+  process.exit(1);
+}
+if (!process.env.JWT_ACCESS_SECRET || process.env.JWT_ACCESS_SECRET.length < 32) {
+  console.error("FATAL: JWT_ACCESS_SECRET ausente ou curto demais. Servidor nao vai subir.");
   process.exit(1);
 }
 
-// ── Autorizacao ──────────────────────────────────────────────────────────────
+try {
+  await db.ping();
+} catch (err) {
+  console.error("FATAL: nao foi possivel conectar ao MariaDB.", err.message);
+  process.exit(1);
+}
 
 const parseList = (value, fallback) =>
   String(value || fallback)
@@ -29,21 +39,12 @@ const parseList = (value, fallback) =>
     .map((item) => item.trim().toLowerCase())
     .filter(Boolean);
 
-// Dominios fechados. Substitui o antigo email.includes("ddm"), que aceitava
-// qualquer endereco com a substring "ddm" (ddm@gmail.com, xddmx@outlook.com).
-const ALLOWED_EMAIL_DOMAINS = parseList(
-  process.env.ALLOWED_EMAIL_DOMAINS,
-  "ddm.adv.br,grupoddm.com.br,grupoddm.ia.br",
-);
+const ALLOWED_EMAIL_DOMAINS = parseList(process.env.ALLOWED_EMAIL_DOMAINS, "ddm.adv.br,grupoddm.com.br,grupoddm.ia.br");
 const ADMIN_EMAILS = parseList(process.env.ADMIN_EMAILS, "");
 
-const emailDomain = (email) => email.slice(email.lastIndexOf("@") + 1);
-const isAllowedEmail = (email) => ALLOWED_EMAIL_DOMAINS.includes(emailDomain(email));
-const isAdminEmail = (email) => ADMIN_EMAILS.includes(email);
-
-// Allowlist dos proxies: caminho + metodos permitidos + exigencia de admin.
-// Gestao de arquivos/vector stores e da conta inteira da organizacao, entao so
-// admin pode escrever ou apagar (chamado apenas por Admin.tsx).
+// Allowlist dos proxies de IA: caminho + metodos + exigencia de admin.
+// Gestao de arquivos/vector stores e da conta inteira da organizacao, entao
+// so admin escreve/apaga (chamado apenas por Admin.tsx).
 const OPENAI_ROUTES = [
   { pattern: /^responses$/, methods: ["POST"], adminOnly: false },
   { pattern: /^files$/, methods: ["POST"], adminOnly: true },
@@ -51,19 +52,11 @@ const OPENAI_ROUTES = [
   { pattern: /^vector_stores$/, methods: ["GET", "POST"], adminOnly: true },
   { pattern: /^vector_stores\/[A-Za-z0-9_-]+$/, methods: ["GET"], adminOnly: true },
   { pattern: /^vector_stores\/[A-Za-z0-9_-]+\/files$/, methods: ["GET", "POST"], adminOnly: true },
-  {
-    pattern: /^vector_stores\/[A-Za-z0-9_-]+\/files\/[A-Za-z0-9_-]+$/,
-    methods: ["GET", "DELETE"],
-    adminOnly: true,
-  },
+  { pattern: /^vector_stores\/[A-Za-z0-9_-]+\/files\/[A-Za-z0-9_-]+$/, methods: ["GET", "DELETE"], adminOnly: true },
 ];
 
 const GEMINI_ROUTES = [
-  {
-    pattern: /^models\/[A-Za-z0-9._-]+:(generateContent|predict)$/,
-    methods: ["POST"],
-    adminOnly: false,
-  },
+  { pattern: /^models\/[A-Za-z0-9._-]+:(generateContent|predict)$/, methods: ["POST"], adminOnly: false },
 ];
 
 const matchRoute = (routes, targetPath, method) => {
@@ -100,6 +93,7 @@ app.use(
   }),
 );
 
+app.use(cookieParser());
 app.use(express.json({ limit: "10mb" }));
 
 app.use(
@@ -111,46 +105,18 @@ app.use(
   }),
 );
 
-// ── Autenticacao ─────────────────────────────────────────────────────────────
+// ── API (auth, dados, arquivos) ──────────────────────────────────────────────
 
-const authenticateSupabaseUser = async (req) => {
-  const raw = String(req.headers.authorization || "");
-  const token = raw.replace(/^Bearer\s+/i, "").trim();
-  if (!token) return null;
+app.use("/api", apiRoutes);
 
-  try {
-    const response = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
-      headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` },
-    });
-    if (!response.ok) return null;
+// ── Proxy de IA: autenticado pelo JWT proprio, nao mais pelo Supabase ───────
 
-    const user = await response.json();
-    const email = String(user?.email || "").trim().toLowerCase();
-    if (!email || !isAllowedEmail(email)) return null;
-
-    return { ...user, email, isAdmin: isAdminEmail(email) };
-  } catch {
-    return null;
-  }
-};
-
-const requireSupabaseAuth = async (req, res, next) => {
-  const user = await authenticateSupabaseUser(req);
-  if (!user) return res.status(401).json({ error: { message: "Nao autorizado." } });
-  req.supabaseUser = user;
-  next();
-};
-
-// Cota por usuario autenticado, nao por IP: impede que um unico login torre a
-// fatura da OpenAI/Gemini. Ajuste AI_RATE_LIMIT conforme o uso real.
 const aiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: Number(process.env.AI_RATE_LIMIT || 60),
   standardHeaders: true,
   legacyHeaders: false,
-  // ipKeyGenerator normaliza o /64 do IPv6. Sem isso, trocar de endereco IPv6
-  // dentro do mesmo prefixo zeraria a cota.
-  keyGenerator: (req) => req.supabaseUser?.id || ipKeyGenerator(req.ip),
+  keyGenerator: (req) => req.user?.id || ipKeyGenerator(req.ip),
   message: {
     error: { message: "Limite de uso da IA atingido. Tente novamente em alguns minutos." },
   },
@@ -182,9 +148,7 @@ const buildProxyBody = async (req) => {
   return readRawBody(req, MAX_UPLOAD_BYTES);
 };
 
-// ── Proxy OpenAI ─────────────────────────────────────────────────────────────
-
-app.all("/api/openai", requireSupabaseAuth, aiLimiter, async (req, res) => {
+app.all("/api/openai", requireAuth, aiLimiter, async (req, res) => {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     return res.status(500).json({ error: { message: "Servico de IA indisponivel." } });
@@ -195,7 +159,7 @@ app.all("/api/openai", requireSupabaseAuth, aiLimiter, async (req, res) => {
   if (!match.ok) {
     return res.status(403).json({ error: { message: "Operacao nao permitida." } });
   }
-  if (match.adminOnly && !req.supabaseUser.isAdmin) {
+  if (match.adminOnly && req.user.role !== "admin") {
     return res.status(403).json({ error: { message: "Operacao restrita a administradores." } });
   }
 
@@ -226,9 +190,7 @@ app.all("/api/openai", requireSupabaseAuth, aiLimiter, async (req, res) => {
   }
 });
 
-// ── Proxy Gemini ─────────────────────────────────────────────────────────────
-
-app.all("/api/gemini", requireSupabaseAuth, aiLimiter, async (req, res) => {
+app.all("/api/gemini", requireAuth, aiLimiter, async (req, res) => {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     return res.status(500).json({ error: { message: "Servico de IA indisponivel." } });
@@ -268,6 +230,15 @@ app.all("/api/gemini", requireSupabaseAuth, aiLimiter, async (req, res) => {
 });
 
 app.get("/api/health", (req, res) => res.json({ ok: true }));
+
+// ── Erro central da API ──────────────────────────────────────────────────────
+// Qualquer throw dentro dos handlers de server/routes.js cai aqui via o
+// wrapper h(). Nunca ecoa err.message bruto: pode conter SQL ou path de disco.
+app.use("/api", (err, req, res, next) => {
+  console.error("Erro na API:", err);
+  if (res.headersSent) return next(err);
+  res.status(500).json({ error: { message: "Erro interno. Tente novamente." } });
+});
 
 // ── Frontend estatico ────────────────────────────────────────────────────────
 

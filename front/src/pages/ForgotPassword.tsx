@@ -1,9 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { AlertCircle, ArrowLeft, Info, KeyRound, Loader2, Lock, Mail } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
-import { supabase } from '../lib/supabaseClient';
 
 const INPUT_CLASS =
   'w-full rounded-xl border border-border bg-background py-3 pl-10 pr-4 text-sm text-white outline-none transition-all placeholder:text-white/20 focus:border-primary focus:ring-2 focus:ring-primary/20';
@@ -29,31 +28,6 @@ export function ForgotPassword() {
   const [loadingVerify, setLoadingVerify] = useState(false);
   const [loadingReset, setLoadingReset] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const recoveryInUrl = useMemo(() => {
-    const href = window.location.href;
-    return href.includes('type=recovery') || href.includes('access_token=');
-  }, []);
-
-  useEffect(() => {
-    if (recoveryInUrl) {
-      window.sessionStorage.setItem(RECOVERY_STAGE_KEY, 'reset');
-      setStage('reset');
-    }
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY') {
-        setStage('reset');
-        setError(null);
-      }
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [recoveryInUrl]);
 
   useEffect(() => {
     window.sessionStorage.setItem(RECOVERY_STAGE_KEY, stage);
@@ -150,7 +124,7 @@ export function ForgotPassword() {
               Redefina sua senha com segurança.
             </h1>
             <p className="max-w-md text-base leading-relaxed text-white/50">
-              Solicite a recuperação pelo e-mail corporativo e conclua a troca da senha com o código recebido ou com o link enviado pelo Supabase.
+              Solicite a recuperação pelo e-mail corporativo e conclua a troca da senha com o código recebido por e-mail.
             </p>
           </div>
         </div>

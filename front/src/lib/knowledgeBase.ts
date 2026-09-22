@@ -1,4 +1,4 @@
-import { supabase } from './supabaseClient';
+import { api } from './apiClient';
 import { openaiFetch } from './aiProxy';
 
 const VS_BETA_HEADER = { 'OpenAI-Beta': 'assistants=v2' };
@@ -11,23 +11,15 @@ export interface KBDoc {
   created_at: string;
 }
 
-// ── Supabase helpers ────────────────────────────────────────────────────────
+// ── App config (id do vector store) ─────────────────────────────────────────
 
 export const getVectorStoreId = async (): Promise<string | null> => {
-  const { data } = await supabase
-    .from('app_config')
-    .select('value')
-    .eq('key', 'vector_store_id')
-    .maybeSingle();
-  return data?.value ?? null;
+  const { value } = await api.get<{ value: string | null }>('/app-config/vector_store_id');
+  return value;
 };
 
 const saveVectorStoreId = async (id: string): Promise<void> => {
-  await supabase.from('app_config').upsert({
-    key: 'vector_store_id',
-    value: id,
-    updated_at: new Date().toISOString(),
-  });
+  await api.put('/app-config/vector_store_id', { value: id });
 };
 
 // ── OpenAI vector store ─────────────────────────────────────────────────────
@@ -89,37 +81,30 @@ export const uploadDocument = async (file: File): Promise<KBDoc> => {
     throw new Error(err.error?.message || 'Erro ao adicionar arquivo ao vector store.');
   }
 
-  // 3. Save to Supabase
-  const { data, error } = await supabase
-    .from('knowledge_base_docs')
-    .insert({ file_name: file.name, openai_file_id: fileId, size_bytes: file.size })
-    .select()
-    .single();
-
-  if (error) throw error;
+  // 3. Salva na API
+  const { doc } = await api.post<{ doc: Record<string, unknown> }>('/knowledge-base/docs', {
+    fileName: file.name,
+    openaiFileId: fileId,
+    sizeBytes: file.size,
+  });
 
   return {
-    id: String(data.id),
-    file_name: String(data.file_name),
-    openai_file_id: String(data.openai_file_id),
-    size_bytes: data.size_bytes ?? null,
-    created_at: String(data.created_at),
+    id: String(doc.id),
+    file_name: String(doc.file_name),
+    openai_file_id: String(doc.openai_file_id),
+    size_bytes: (doc.size_bytes as number | null) ?? null,
+    created_at: String(doc.created_at),
   };
 };
 
 export const listDocuments = async (): Promise<KBDoc[]> => {
-  const { data, error } = await supabase
-    .from('knowledge_base_docs')
-    .select('*')
-    .order('created_at', { ascending: false });
+  const { docs } = await api.get<{ docs: Array<Record<string, unknown>> }>('/knowledge-base/docs');
 
-  if (error) throw error;
-
-  return (data || []).map((row) => ({
+  return docs.map((row) => ({
     id: String(row.id),
     file_name: String(row.file_name),
     openai_file_id: String(row.openai_file_id),
-    size_bytes: row.size_bytes ?? null,
+    size_bytes: (row.size_bytes as number | null) ?? null,
     created_at: String(row.created_at),
   }));
 };
@@ -140,8 +125,8 @@ export const deleteDocument = async (doc: KBDoc): Promise<void> => {
     method: 'DELETE',
   }).catch(() => {});
 
-  // Delete from Supabase
-  await supabase.from('knowledge_base_docs').delete().eq('id', doc.id);
+  // Delete from API
+  await api.delete(`/knowledge-base/docs/${doc.id}`).catch(() => {});
 };
 
 export const formatFileSize = (bytes: number | null): string => {

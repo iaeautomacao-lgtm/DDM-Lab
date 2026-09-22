@@ -49,3 +49,7 @@ Thumbs.db
 # Build output (nao versionar: risco de vazar env inlinada no bundle)
 dist/
 front/dist/
+
+# Uploads locais (substitui Supabase Storage) — nunca versionar
+/storage/
+front/storage/

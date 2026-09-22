@@ -421,7 +421,7 @@ export const Generator = () => {
       const conversationId = await persistConversationIfPossible(promptText);
 
       if (!conversationId) {
-        throw new Error('Nao foi possivel criar a conversa no Supabase. Verifique a tabela conversas e o campo criado_por.');
+        throw new Error('Nao foi possivel criar a conversa. Tente novamente em instantes.');
       }
 
       await appendConversationMessage(conversationId, 'user', promptText, autoModel, user?.id || null);

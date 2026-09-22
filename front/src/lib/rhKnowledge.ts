@@ -1,4 +1,4 @@
-import { supabase } from './supabaseClient';
+import { api } from './apiClient';
 
 export interface RHKnowledgeArticle {
   id: string;
@@ -26,41 +26,27 @@ export const RH_CATEGORIES = [
 export type RHCategory = (typeof RH_CATEGORIES)[number];
 
 export const getAllArticles = async (): Promise<RHKnowledgeArticle[]> => {
-  const { data, error } = await supabase
-    .from('rh_knowledge')
-    .select('*')
-    .order('updated_at', { ascending: false });
-  if (error) throw error;
-  return data ?? [];
+  const { articles } = await api.get<{ articles: RHKnowledgeArticle[] }>('/rh/knowledge');
+  return articles;
 };
 
 export const createArticle = async (
   article: Pick<RHKnowledgeArticle, 'title' | 'category' | 'content' | 'tags' | 'status'>,
-  userId: string,
+  _userId: string,
 ): Promise<RHKnowledgeArticle> => {
-  const { data, error } = await supabase
-    .from('rh_knowledge')
-    .insert({ ...article, created_by: userId })
-    .select()
-    .single();
-  if (error) throw error;
-  return data;
+  const { article: created } = await api.post<{ article: RHKnowledgeArticle }>('/rh/knowledge', article);
+  return created;
 };
 
 export const updateArticle = async (
   id: string,
   updates: Partial<Pick<RHKnowledgeArticle, 'title' | 'category' | 'content' | 'tags' | 'status'>>,
 ): Promise<void> => {
-  const { error } = await supabase
-    .from('rh_knowledge')
-    .update({ ...updates, updated_at: new Date().toISOString() })
-    .eq('id', id);
-  if (error) throw error;
+  await api.patch(`/rh/knowledge/${id}`, updates);
 };
 
 export const deleteArticle = async (id: string): Promise<void> => {
-  const { error } = await supabase.from('rh_knowledge').delete().eq('id', id);
-  if (error) throw error;
+  await api.delete(`/rh/knowledge/${id}`);
 };
 
 const RH_SEARCH_KEYWORDS = [
@@ -82,32 +68,8 @@ export const isRHQuery = (text: string): boolean => {
 
 export const searchKnowledge = async (query: string, limit = 4): Promise<RHKnowledgeArticle[]> => {
   if (!query.trim()) return [];
-  const terms = query
-    .toLowerCase()
-    .split(/\s+/)
-    .filter(t => t.length >= 4)
-    .slice(0, 5);
-
-  if (terms.length === 0) {
-    const { data } = await supabase
-      .from('rh_knowledge')
-      .select('*')
-      .eq('status', 'published')
-      .order('updated_at', { ascending: false })
-      .limit(limit);
-    return data ?? [];
-  }
-
-  const conditions = terms
-    .flatMap(term => [`title.ilike.%${term}%`, `content.ilike.%${term}%`])
-    .join(',');
-
-  const { data } = await supabase
-    .from('rh_knowledge')
-    .select('*')
-    .eq('status', 'published')
-    .or(conditions)
-    .order('updated_at', { ascending: false })
-    .limit(limit);
-  return data ?? [];
+  const { articles } = await api.get<{ articles: RHKnowledgeArticle[] }>(
+    `/rh/knowledge/search?q=${encodeURIComponent(query)}&limit=${limit}`,
+  );
+  return articles;
 };

@@ -1,4 +1,4 @@
-import { supabase } from './supabaseClient';
+import { api } from './apiClient';
 
 export interface Resposta {
   id: string;
@@ -33,89 +33,41 @@ export interface Visualizacao {
 }
 
 export const uploadAnexo = async (file: File): Promise<Anexo> => {
-  const ext = file.name.split('.').pop() || '';
-  const safeName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-
-  const { error } = await supabase.storage
-    .from('rh-arquivos')
-    .upload(safeName, file, { contentType: file.type, upsert: false });
-
-  if (error) throw new Error(`Erro ao enviar arquivo: ${error.message}`);
-
-  const { data } = supabase.storage.from('rh-arquivos').getPublicUrl(safeName);
-
-  return {
-    nome: file.name,
-    url: data.publicUrl,
-    tipo: file.type.startsWith('image/') ? 'image' : 'document',
-  };
+  const form = new FormData();
+  form.append('file', file);
+  return api.post<Anexo>('/rh/anexos', form);
 };
 
-export const updateInformativo = async (
-  id: string,
-  updates: { titulo?: string; conteudo?: string },
-): Promise<void> => {
-  const { error } = await supabase.from('rh_informativos').update(updates).eq('id', id);
-  if (error) throw new Error(error.message);
+export const updateInformativo = async (id: string, updates: { titulo?: string; conteudo?: string }): Promise<void> => {
+  await api.patch(`/rh/informativos/${id}`, updates);
 };
 
-export const addResposta = async (
-  informativo_id: string,
-  conteudo: string,
-  autor_nome: string,
-): Promise<Resposta> => {
-  const { data: current, error: fetchError } = await supabase
-    .from('rh_informativos')
-    .select('respostas')
-    .eq('id', informativo_id)
-    .single();
-  if (fetchError) throw new Error(fetchError.message);
-
-  const nova: Resposta = {
-    id: crypto.randomUUID(),
+export const addResposta = async (informativo_id: string, conteudo: string, autor_nome: string): Promise<Resposta> => {
+  const { resposta } = await api.post<{ resposta: Resposta }>(`/rh/informativos/${informativo_id}/respostas`, {
     conteudo,
-    autor_nome,
-    created_at: new Date().toISOString(),
-  };
-
-  const { error } = await supabase
-    .from('rh_informativos')
-    .update({ respostas: [...(current.respostas || []), nova] })
-    .eq('id', informativo_id);
-  if (error) throw new Error(error.message);
-
-  return nova;
+    autorNome: autor_nome,
+  });
+  return resposta;
 };
 
+// terceiro parametro mantido por compatibilidade com o call site em
+// RHBalloon.tsx — o servidor agora le a lista atual direto do banco.
 export const deleteResposta = async (
   informativo_id: string,
   resposta_id: string,
-  respostas_atuais: Resposta[],
+  _respostas_atuais?: Resposta[],
 ): Promise<void> => {
-  const { error } = await supabase
-    .from('rh_informativos')
-    .update({ respostas: respostas_atuais.filter((r) => r.id !== resposta_id) })
-    .eq('id', informativo_id);
-  if (error) throw new Error(error.message);
+  await api.delete(`/rh/informativos/${informativo_id}/respostas/${resposta_id}`);
 };
 
 export const getInformativos = async (): Promise<Informativo[]> => {
-  const { data, error } = await supabase
-    .from('rh_informativos')
-    .select('*')
-    .eq('ativo', true)
-    .order('created_at', { ascending: false });
-  if (error) throw new Error(error.message);
-  return (data || []).map((d) => ({ ...d, anexos: d.anexos || [], respostas: d.respostas || [] }));
+  const { informativos } = await api.get<{ informativos: Informativo[] }>('/rh/informativos');
+  return informativos;
 };
 
 export const getAllInformativos = async (): Promise<Informativo[]> => {
-  const { data, error } = await supabase
-    .from('rh_informativos')
-    .select('*')
-    .order('created_at', { ascending: false });
-  if (error) throw new Error(error.message);
-  return (data || []).map((d) => ({ ...d, anexos: d.anexos || [], respostas: d.respostas || [] }));
+  const { informativos } = await api.get<{ informativos: Informativo[] }>('/rh/informativos/all');
+  return informativos;
 };
 
 export const createInformativo = async (
@@ -124,69 +76,39 @@ export const createInformativo = async (
   autor_nome: string,
   anexos: Anexo[] = [],
 ): Promise<Informativo> => {
-  const { data, error } = await supabase
-    .from('rh_informativos')
-    .insert({ titulo, conteudo, autor_nome, anexos })
-    .select()
-    .single();
-  if (error) throw new Error(error.message);
-  return { ...data, anexos: data.anexos || [], respostas: data.respostas || [] };
+  const { informativo } = await api.post<{ informativo: Informativo }>('/rh/informativos', {
+    titulo,
+    conteudo,
+    autorNome: autor_nome,
+    anexos,
+  });
+  return informativo;
 };
 
 export const deactivateInformativo = async (id: string): Promise<void> => {
-  const { error } = await supabase
-    .from('rh_informativos')
-    .update({ ativo: false })
-    .eq('id', id);
-  if (error) throw new Error(error.message);
+  await api.post(`/rh/informativos/${id}/deactivate`);
 };
 
 export const reactivateInformativo = async (id: string): Promise<void> => {
-  const { error } = await supabase
-    .from('rh_informativos')
-    .update({ ativo: true })
-    .eq('id', id);
-  if (error) throw new Error(error.message);
+  await api.post(`/rh/informativos/${id}/reactivate`);
 };
 
-export const markAsViewed = async (
-  informativo_id: string,
-  user_uid: string,
-  user_nome: string | null,
-): Promise<void> => {
-  const { error } = await supabase
-    .from('rh_visualizacoes')
-    .upsert({ informativo_id, user_uid, user_nome }, { onConflict: 'informativo_id,user_uid' });
-  if (error) throw new Error(error.message);
+export const markAsViewed = async (informativo_id: string, _user_uid: string, user_nome: string | null): Promise<void> => {
+  await api.post(`/rh/informativos/${informativo_id}/viewed`, { userNome: user_nome });
 };
 
-export const getViewedIds = async (user_uid: string): Promise<string[]> => {
-  const { data } = await supabase
-    .from('rh_visualizacoes')
-    .select('informativo_id')
-    .eq('user_uid', user_uid);
-  return (data || []).map((v) => v.informativo_id);
+export const getViewedIds = async (_user_uid: string): Promise<string[]> => {
+  const { ids } = await api.get<{ ids: string[] }>('/rh/informativos/viewed-ids');
+  return ids;
 };
 
 export const getVisualizacoes = async (informativo_id: string): Promise<Visualizacao[]> => {
-  const { data, error } = await supabase
-    .from('rh_visualizacoes')
-    .select('*')
-    .eq('informativo_id', informativo_id)
-    .order('viewed_at', { ascending: false });
-  if (error) throw new Error(error.message);
-  return data || [];
+  const { visualizacoes } = await api.get<{ visualizacoes: Visualizacao[] }>(`/rh/informativos/${informativo_id}/visualizacoes`);
+  return visualizacoes;
 };
 
 export const getViewCountsForIds = async (ids: string[]): Promise<Record<string, number>> => {
   if (!ids.length) return {};
-  const { data } = await supabase
-    .from('rh_visualizacoes')
-    .select('informativo_id')
-    .in('informativo_id', ids);
-  const counts: Record<string, number> = {};
-  for (const row of data || []) {
-    counts[row.informativo_id] = (counts[row.informativo_id] || 0) + 1;
-  }
+  const { counts } = await api.post<{ counts: Record<string, number> }>('/rh/informativos/view-counts', { ids });
   return counts;
 };

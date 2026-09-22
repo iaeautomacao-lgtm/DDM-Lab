@@ -13,7 +13,6 @@ import {
   type FeedPost,
   type FeedComment,
 } from '../lib/supabaseData';
-import { supabase } from '../lib/supabaseClient';
 import { formatDateTime } from '../lib/utils';
 
 const DEFAULT_AVATAR = '/acordito.png';
@@ -251,20 +250,12 @@ export const Feed = () => {
     if (!user) return;
     fetchFeedPosts(user.id).then((data) => { setPosts(data); setLoading(false); });
 
-    // Realtime: novos posts
-    const channel = supabase
-      .channel('feed_realtime')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'feed_posts' }, async () => {
-        const fresh = await fetchFeedPosts(user.id);
-        setPosts(fresh);
-      })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'feed_posts' }, async () => {
-        const fresh = await fetchFeedPosts(user.id);
-        setPosts(fresh);
-      })
-      .subscribe();
+    // Sem realtime (Supabase Realtime nao existe mais): atualiza por polling.
+    const interval = setInterval(() => {
+      fetchFeedPosts(user.id).then(setPosts).catch(() => {});
+    }, 20_000);
 
-    return () => { supabase.removeChannel(channel); };
+    return () => clearInterval(interval);
   }, [user]);
 
   const handlePost = async () => {

@@ -1,4 +1,4 @@
-import { supabase } from './supabaseClient';
+import { api } from './apiClient';
 
 export type SugestaoStatus = 'pendente' | 'lida' | 'arquivada';
 
@@ -14,52 +14,20 @@ export interface Sugestao {
 }
 
 export const submitSugestao = async (
-  userId: string,
-  userEmail: string,
-  userName: string,
+  _userId: string,
+  _userEmail: string,
+  _userName: string,
   content: string,
   categoria: string = 'outro',
 ): Promise<void> => {
-  const { error } = await supabase.from('sugestoes').insert({
-    user_id: userId,
-    user_email: userEmail,
-    user_name: userName,
-    content,
-    categoria,
-    status: 'pendente',
-  });
-
-  if (error) throw error;
+  await api.post('/sugestoes', { content, categoria });
 };
 
 export const fetchAllSugestoes = async (): Promise<Sugestao[]> => {
-  const { data, error } = await supabase
-    .from('sugestoes')
-    .select('*')
-    .order('created_at', { ascending: false });
-
-  if (error) throw error;
-
-  return (data || []).map((row) => ({
-    id: String(row.id),
-    user_id: row.user_id ?? null,
-    user_email: row.user_email ?? null,
-    user_name: row.user_name ?? null,
-    content: String(row.content),
-    categoria: row.categoria ?? null,
-    status: (row.status as SugestaoStatus) ?? 'pendente',
-    created_at: String(row.created_at),
-  }));
+  const { sugestoes } = await api.get<{ sugestoes: Sugestao[] }>('/sugestoes');
+  return sugestoes;
 };
 
-export const updateSugestaoStatus = async (
-  id: string,
-  status: SugestaoStatus,
-): Promise<void> => {
-  const { error } = await supabase
-    .from('sugestoes')
-    .update({ status })
-    .eq('id', id);
-
-  if (error) throw error;
+export const updateSugestaoStatus = async (id: string, status: SugestaoStatus): Promise<void> => {
+  await api.patch(`/sugestoes/${id}`, { status });
 };

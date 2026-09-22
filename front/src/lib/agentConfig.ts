@@ -1,4 +1,4 @@
-import { supabase } from './supabaseClient';
+import { api } from './apiClient';
 
 const DEFAULT_PROMPTS: Record<string, string> = {
   RH: `Voce e o Acordito RH, assistente setorial do DDM Lab para o setor de Recursos Humanos do Grupo DDM. Atue como especialista nos processos de RH, Departamento Pessoal e Treinamento.
@@ -289,7 +289,7 @@ export interface AgentConfig {
   updated_at?: string;
 }
 
-// Cache simples de 5 minutos para não bater no Supabase em toda mensagem
+// Cache simples de 5 minutos para não bater na API em toda mensagem
 const cache: Record<string, { prompt: string; ts: number }> = {};
 const TTL = 5 * 60 * 1000;
 
@@ -298,15 +298,14 @@ export const fetchAgentSystemPrompt = async (department: string): Promise<string
   const cached = cache[department];
   if (cached && now - cached.ts < TTL) return cached.prompt;
 
-  const { data } = await supabase
-    .from('agent_configs')
-    .select('system_prompt')
-    .eq('department', department)
-    .maybeSingle();
-
-  if (data?.system_prompt) {
-    cache[department] = { prompt: data.system_prompt, ts: now };
-    return data.system_prompt;
+  try {
+    const { systemPrompt } = await api.get<{ systemPrompt: string | null }>(`/agent-configs/${encodeURIComponent(department)}`);
+    if (systemPrompt) {
+      cache[department] = { prompt: systemPrompt, ts: now };
+      return systemPrompt;
+    }
+  } catch {
+    // segue para o fallback local
   }
 
   const fallback = DEFAULT_PROMPTS[department];
@@ -318,42 +317,20 @@ export const fetchAgentSystemPrompt = async (department: string): Promise<string
 };
 
 export const fetchAllAgentConfigs = async (): Promise<AgentConfig[]> => {
-  const { data, error } = await supabase
-    .from('agent_configs')
-    .select('*')
-    .order('department');
-
-  if (error) throw error;
-  return data || [];
+  const { configs } = await api.get<{ configs: AgentConfig[] }>('/agent-configs');
+  return configs;
 };
 
 export const upsertAgentConfig = async (
   department: string,
   system_prompt: string,
-  updated_by: string,
+  _updated_by: string,
 ): Promise<void> => {
-  const { error } = await supabase.from('agent_configs').upsert(
-    {
-      department,
-      system_prompt,
-      updated_by,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: 'department' },
-  );
-
-  if (error) throw error;
-
-  // Invalida cache do setor atualizado
+  await api.put(`/agent-configs/${encodeURIComponent(department)}`, { systemPrompt: system_prompt });
   delete cache[department];
 };
 
 export const resetAgentConfig = async (department: string): Promise<void> => {
-  const { error } = await supabase
-    .from('agent_configs')
-    .delete()
-    .eq('department', department);
-
-  if (error) throw error;
+  await api.delete(`/agent-configs/${encodeURIComponent(department)}`);
   delete cache[department];
 };

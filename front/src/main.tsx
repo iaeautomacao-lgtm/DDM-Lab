@@ -12,13 +12,9 @@ if (!rootElement) {
   throw new Error('Elemento root nao encontrado.');
 }
 
-// OpenAI/Gemini keys moved server-side (proxy /api/*) — they are no longer
-// part of the client bundle, so only the public Supabase vars are validated here.
-const missingEnvVars = [
-  ['VITE_SUPABASE_URL', import.meta.env.VITE_SUPABASE_URL],
-  ['VITE_SUPABASE_ANON_KEY', import.meta.env.VITE_SUPABASE_ANON_KEY],
-].filter(([, value]) => !value);
-
+// Nenhuma variavel de ambiente precisa existir no bundle do cliente: banco,
+// segredo de JWT e chaves de IA ficam so no servidor (server/*.js). O unico
+// env de cliente, VITE_API_BASE, e opcional (default: mesma origem).
 const renderBootError = (message: string) => {
   createRoot(rootElement).render(
     <StrictMode>
@@ -33,27 +29,19 @@ const renderBootError = (message: string) => {
   );
 };
 
-if (missingEnvVars.length > 0) {
-  renderBootError(
-    `As variaveis abaixo nao foram encontradas no ambiente do deploy:\n\n${missingEnvVars
-      .map(([name]) => `- ${name}`)
-      .join('\n')}\n\nCadastre essas variaveis no servidor proprio ou no arquivo backend/.env.local e reinicie a aplicacao.`,
-  );
-} else {
-  import('./App.tsx')
-    .then(({ default: App }) => {
-      createRoot(rootElement).render(
-        <StrictMode>
-          <App />
-        </StrictMode>,
-      );
-    })
-    .catch((error) => {
-      console.error('Erro ao iniciar aplicacao:', error);
-      renderBootError(
-        error instanceof Error
-          ? error.message
-          : 'Nao foi possivel carregar a aplicacao. Verifique os logs do servidor.',
-      );
-    });
-}
+import('./App.tsx')
+  .then(({ default: App }) => {
+    createRoot(rootElement).render(
+      <StrictMode>
+        <App />
+      </StrictMode>,
+    );
+  })
+  .catch((error) => {
+    console.error('Erro ao iniciar aplicacao:', error);
+    renderBootError(
+      error instanceof Error
+        ? error.message
+        : 'Nao foi possivel carregar a aplicacao. Verifique os logs do servidor.',
+    );
+  });

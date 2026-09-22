@@ -433,7 +433,7 @@ export const Library = () => {
           setTemplates(dbTemplates);
         }
       } catch (error) {
-        console.error('Erro ao carregar prompts do Supabase:', error);
+        console.error('Erro ao carregar prompts:', error);
       }
     };
     loadTemplates();

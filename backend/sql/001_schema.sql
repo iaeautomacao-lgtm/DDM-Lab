@@ -226,11 +226,10 @@ CREATE TABLE IF NOT EXISTS prompts_customizados (
   id          CHAR(36)     NOT NULL PRIMARY KEY,
   user_id     CHAR(36)     NOT NULL,
   title       VARCHAR(255) NOT NULL,
-  description TEXT         NULL,
   department  VARCHAR(120) NULL,
-  base_prompt MEDIUMTEXT   NOT NULL,
-  tags        JSON         NULL,
-  variables   JSON         NULL,
+  tone        VARCHAR(120) NULL,
+  purpose     TEXT         NULL,
+  prompt_text MEDIUMTEXT   NOT NULL,
   created_at  DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   KEY idx_custom_user (user_id, created_at),
   CONSTRAINT fk_custom_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -292,11 +291,12 @@ CREATE TABLE IF NOT EXISTS user_progress (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS sugestoes (
-  id         CHAR(36) NOT NULL PRIMARY KEY,
-  user_id    CHAR(36) NULL,
-  conteudo   TEXT     NOT NULL,
-  status     ENUM('nova','em_analise','concluida','recusada') NOT NULL DEFAULT 'nova',
-  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  id         CHAR(36)     NOT NULL PRIMARY KEY,
+  user_id    CHAR(36)     NULL,
+  conteudo   TEXT         NOT NULL,
+  categoria  VARCHAR(60)  NULL,
+  status     ENUM('pendente','lida','arquivada') NOT NULL DEFAULT 'pendente',
+  created_at DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   KEY idx_sugestoes_status (status, created_at),
   CONSTRAINT fk_sugestoes_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

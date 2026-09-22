@@ -1,0 +1,14 @@
+{
+  "name": "ddm-lab-migration",
+  "private": true,
+  "type": "module",
+  "description": "Scripts de migracao Supabase -> MariaDB. Nao faz parte da app (nao entra no build do front).",
+  "scripts": {
+    "migrate": "node migrate.mjs"
+  },
+  "dependencies": {
+    "pg": "^8.13.1",
+    "mysql2": "^3.11.5",
+    "dotenv": "^17.2.3"
+  }
+}
