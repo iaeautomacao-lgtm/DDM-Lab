@@ -1,43 +1,122 @@
 import express from "express";
 import path from "path";
-import jwt from "jsonwebtoken";
-import bcrypt from "bcryptjs";
+import helmet from "helmet";
+import cors from "cors";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import dotenv from "dotenv";
 
 dotenv.config({ path: path.resolve(process.cwd(), "../backend/.env.local") });
 
 const app = express();
 const PORT = Number(process.env.PORT || 3001);
-const JWT_SECRET = process.env.JWT_SECRET || "acordito-secret-key";
 const distPath = path.join(process.cwd(), "dist");
+
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || "";
 
-const OPENAI_ALLOWED_PATHS = [
-  /^responses$/,
-  /^files$/,
-  /^files\/[A-Za-z0-9_-]+$/,
-  /^vector_stores$/,
-  /^vector_stores\/[A-Za-z0-9_-]+$/,
-  /^vector_stores\/[A-Za-z0-9_-]+\/files$/,
-  /^vector_stores\/[A-Za-z0-9_-]+\/files\/[A-Za-z0-9_-]+$/,
+// Fail fast: sem estas envs o gate de autenticacao nao funciona e o proxy de IA
+// ficaria aberto. Melhor nao subir do que subir sem protecao.
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  console.error("FATAL: SUPABASE_URL/SUPABASE_ANON_KEY ausentes. Servidor nao vai subir.");
+  process.exit(1);
+}
+
+// ── Autorizacao ──────────────────────────────────────────────────────────────
+
+const parseList = (value, fallback) =>
+  String(value || fallback)
+    .split(",")
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+
+// Dominios fechados. Substitui o antigo email.includes("ddm"), que aceitava
+// qualquer endereco com a substring "ddm" (ddm@gmail.com, xddmx@outlook.com).
+const ALLOWED_EMAIL_DOMAINS = parseList(
+  process.env.ALLOWED_EMAIL_DOMAINS,
+  "ddm.adv.br,grupoddm.com.br,grupoddm.ia.br",
+);
+const ADMIN_EMAILS = parseList(process.env.ADMIN_EMAILS, "");
+
+const emailDomain = (email) => email.slice(email.lastIndexOf("@") + 1);
+const isAllowedEmail = (email) => ALLOWED_EMAIL_DOMAINS.includes(emailDomain(email));
+const isAdminEmail = (email) => ADMIN_EMAILS.includes(email);
+
+// Allowlist dos proxies: caminho + metodos permitidos + exigencia de admin.
+// Gestao de arquivos/vector stores e da conta inteira da organizacao, entao so
+// admin pode escrever ou apagar (chamado apenas por Admin.tsx).
+const OPENAI_ROUTES = [
+  { pattern: /^responses$/, methods: ["POST"], adminOnly: false },
+  { pattern: /^files$/, methods: ["POST"], adminOnly: true },
+  { pattern: /^files\/[A-Za-z0-9_-]+$/, methods: ["GET", "DELETE"], adminOnly: true },
+  { pattern: /^vector_stores$/, methods: ["GET", "POST"], adminOnly: true },
+  { pattern: /^vector_stores\/[A-Za-z0-9_-]+$/, methods: ["GET"], adminOnly: true },
+  { pattern: /^vector_stores\/[A-Za-z0-9_-]+\/files$/, methods: ["GET", "POST"], adminOnly: true },
+  {
+    pattern: /^vector_stores\/[A-Za-z0-9_-]+\/files\/[A-Za-z0-9_-]+$/,
+    methods: ["GET", "DELETE"],
+    adminOnly: true,
+  },
 ];
-const GEMINI_ALLOWED_PATH = /^models\/[A-Za-z0-9._-]+:(generateContent|predict)$/;
 
-app.use(express.json({ limit: "25mb" }));
+const GEMINI_ROUTES = [
+  {
+    pattern: /^models\/[A-Za-z0-9._-]+:(generateContent|predict)$/,
+    methods: ["POST"],
+    adminOnly: false,
+  },
+];
 
-const readRawBody = (req) =>
-  new Promise((resolve, reject) => {
-    const chunks = [];
-    req.on("data", (chunk) => chunks.push(chunk));
-    req.on("end", () => resolve(Buffer.concat(chunks)));
-    req.on("error", reject);
-  });
+const matchRoute = (routes, targetPath, method) => {
+  const route = routes.find((item) => item.pattern.test(targetPath));
+  if (!route) return { ok: false };
+  if (!route.methods.includes(method.toUpperCase())) return { ok: false };
+  return { ok: true, adminOnly: route.adminOnly };
+};
+
+// ── Hardening de transporte ──────────────────────────────────────────────────
+
+app.set("trust proxy", 1);
+app.disable("x-powered-by");
+
+app.use(
+  helmet({
+    // O bundle do Vite usa estilos inline; CSP entra junto com o build da fase 2.
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+  }),
+);
+app.use(helmet.hsts({ maxAge: 31536000, includeSubDomains: true, preload: true }));
+
+// Same-origin por padrao: a app serve o proprio frontend. CORS_ORIGINS so no dev.
+const CORS_ORIGINS = parseList(process.env.CORS_ORIGINS, "");
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (CORS_ORIGINS.includes(origin.toLowerCase())) return callback(null, true);
+      return callback(new Error("Origem nao permitida."));
+    },
+    credentials: true,
+  }),
+);
+
+app.use(express.json({ limit: "10mb" }));
+
+app.use(
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 600,
+    standardHeaders: true,
+    legacyHeaders: false,
+  }),
+);
+
+// ── Autenticacao ─────────────────────────────────────────────────────────────
 
 const authenticateSupabaseUser = async (req) => {
   const raw = String(req.headers.authorization || "");
   const token = raw.replace(/^Bearer\s+/i, "").trim();
-  if (!token || !SUPABASE_URL || !SUPABASE_ANON_KEY) return null;
+  if (!token) return null;
 
   try {
     const response = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
@@ -47,9 +126,9 @@ const authenticateSupabaseUser = async (req) => {
 
     const user = await response.json();
     const email = String(user?.email || "").trim().toLowerCase();
-    if (!email.includes("ddm")) return null;
+    if (!email || !isAllowedEmail(email)) return null;
 
-    return user;
+    return { ...user, email, isAdmin: isAdminEmail(email) };
   } catch {
     return null;
   }
@@ -62,87 +141,70 @@ const requireSupabaseAuth = async (req, res, next) => {
   next();
 };
 
-const users = [
-  { id: "1", name: "Admin Acordito", email: "admin@empresa.com", password: bcrypt.hashSync("admin123", 10), role: "admin", sector: "TI" },
-  { id: "2", name: "Joao Silva", email: "joao@empresa.com", password: bcrypt.hashSync("user123", 10), role: "user", sector: "Marketing" },
-  { id: "3", name: "Maria Souza", email: "maria@empresa.com", password: bcrypt.hashSync("user123", 10), role: "user", sector: "Comercial" },
-];
+// Cota por usuario autenticado, nao por IP: impede que um unico login torre a
+// fatura da OpenAI/Gemini. Ajuste AI_RATE_LIMIT conforme o uso real.
+const aiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: Number(process.env.AI_RATE_LIMIT || 60),
+  standardHeaders: true,
+  legacyHeaders: false,
+  // ipKeyGenerator normaliza o /64 do IPv6. Sem isso, trocar de endereco IPv6
+  // dentro do mesmo prefixo zeraria a cota.
+  keyGenerator: (req) => req.supabaseUser?.id || ipKeyGenerator(req.ip),
+  message: {
+    error: { message: "Limite de uso da IA atingido. Tente novamente em alguns minutos." },
+  },
+});
 
-const interactions = [];
+const MAX_UPLOAD_BYTES = Number(process.env.MAX_UPLOAD_BYTES || 20 * 1024 * 1024);
 
-const authenticateToken = (req, res, next) => {
-  const authHeader = req.headers.authorization;
-  const token = authHeader && authHeader.split(" ")[1];
-
-  if (!token) return res.sendStatus(401);
-
-  jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) return res.sendStatus(403);
-    req.user = user;
-    next();
+const readRawBody = (req, maxBytes) =>
+  new Promise((resolve, reject) => {
+    const chunks = [];
+    let size = 0;
+    req.on("data", (chunk) => {
+      size += chunk.length;
+      if (size > maxBytes) {
+        reject(new Error("payload-too-large"));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on("end", () => resolve(Buffer.concat(chunks)));
+    req.on("error", reject);
   });
+
+const buildProxyBody = async (req) => {
+  if (req.method === "GET" || req.method === "HEAD") return undefined;
+  const isJson = String(req.headers["content-type"] || "").includes("application/json");
+  if (isJson) return JSON.stringify(req.body);
+  return readRawBody(req, MAX_UPLOAD_BYTES);
 };
 
-app.post("/api/auth/login", (req, res) => {
-  const { email, password } = req.body;
-  const user = users.find((item) => item.email === email);
+// ── Proxy OpenAI ─────────────────────────────────────────────────────────────
 
-  if (user && bcrypt.compareSync(password, user.password)) {
-    const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role, name: user.name, sector: user.sector },
-      JWT_SECRET,
-    );
-    res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role, sector: user.sector } });
-  } else {
-    res.status(401).json({ message: "Credenciais invalidas" });
-  }
-});
-
-app.post("/api/interactions", authenticateToken, (req, res) => {
-  const interaction = {
-    ...req.body,
-    id: Math.random().toString(36).slice(2, 11),
-    userId: req.user.id,
-    userName: req.user.name,
-    userSector: req.user.sector,
-    timestamp: new Date().toISOString(),
-  };
-  interactions.push(interaction);
-  res.status(201).json(interaction);
-});
-
-app.get("/api/admin/stats", authenticateToken, (req, res) => {
-  if (req.user.role !== "admin") return res.sendStatus(403);
-
-  const stats = {
-    totalInteractions: interactions.length,
-    interactionsBySector: interactions.reduce((acc, curr) => {
-      acc[curr.userSector] = (acc[curr.userSector] || 0) + 1;
-      return acc;
-    }, {}),
-    recentInteractions: interactions.slice(-10).reverse(),
-    usersCount: users.length,
-  };
-  res.json(stats);
-});
-
-app.all("/api/openai", requireSupabaseAuth, async (req, res) => {
+app.all("/api/openai", requireSupabaseAuth, aiLimiter, async (req, res) => {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
-    return res.status(500).json({ error: { message: "OPENAI_API_KEY nao configurada no servidor." } });
+    return res.status(500).json({ error: { message: "Servico de IA indisponivel." } });
   }
 
   const targetPath = String(req.headers["x-openai-path"] || "").replace(/^\/+/, "");
-  if (!OPENAI_ALLOWED_PATHS.some((pattern) => pattern.test(targetPath))) {
-    return res.status(400).json({ error: { message: `Endpoint nao permitido: ${targetPath}` } });
+  const match = matchRoute(OPENAI_ROUTES, targetPath, req.method);
+  if (!match.ok) {
+    return res.status(403).json({ error: { message: "Operacao nao permitida." } });
+  }
+  if (match.adminOnly && !req.supabaseUser.isAdmin) {
+    return res.status(403).json({ error: { message: "Operacao restrita a administradores." } });
   }
 
-  const isJson = String(req.headers["content-type"] || "").includes("application/json");
-  const body = req.method === "GET" || req.method === "HEAD"
-    ? undefined
-    : isJson
-      ? JSON.stringify(req.body)
-      : await readRawBody(req);
+  let body;
+  try {
+    body = await buildProxyBody(req);
+  } catch {
+    return res.status(413).json({ error: { message: "Arquivo muito grande." } });
+  }
 
   try {
     const upstream = await fetch(`https://api.openai.com/v1/${targetPath}`, {
@@ -155,48 +217,59 @@ app.all("/api/openai", requireSupabaseAuth, async (req, res) => {
       body,
     });
 
-    const body = Buffer.from(await upstream.arrayBuffer());
+    const responseBody = Buffer.from(await upstream.arrayBuffer());
     res.status(upstream.status);
     res.setHeader("Content-Type", upstream.headers.get("content-type") || "application/json");
-    res.send(body);
+    res.send(responseBody);
   } catch {
     res.status(502).json({ error: { message: "Falha ao contatar a OpenAI." } });
   }
 });
 
-app.all("/api/gemini", requireSupabaseAuth, async (req, res) => {
+// ── Proxy Gemini ─────────────────────────────────────────────────────────────
+
+app.all("/api/gemini", requireSupabaseAuth, aiLimiter, async (req, res) => {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    return res.status(500).json({ error: { message: "GEMINI_API_KEY nao configurada no servidor." } });
+    return res.status(500).json({ error: { message: "Servico de IA indisponivel." } });
   }
 
   const targetPath = String(req.headers["x-gemini-path"] || "").replace(/^\/+/, "");
-  if (!GEMINI_ALLOWED_PATH.test(targetPath)) {
-    return res.status(400).json({ error: { message: `Endpoint nao permitido: ${targetPath}` } });
+  const match = matchRoute(GEMINI_ROUTES, targetPath, req.method);
+  if (!match.ok) {
+    return res.status(403).json({ error: { message: "Operacao nao permitida." } });
   }
 
-  const isJson = String(req.headers["content-type"] || "").includes("application/json");
-  const body = req.method === "GET" || req.method === "HEAD"
-    ? undefined
-    : isJson
-      ? JSON.stringify(req.body)
-      : await readRawBody(req);
+  let body;
+  try {
+    body = await buildProxyBody(req);
+  } catch {
+    return res.status(413).json({ error: { message: "Arquivo muito grande." } });
+  }
 
   try {
-    const upstream = await fetch(`https://generativelanguage.googleapis.com/v1beta/${targetPath}?key=${apiKey}`, {
+    // Chave no header, nao na query string: evita vazamento em log de acesso.
+    const upstream = await fetch(`https://generativelanguage.googleapis.com/v1beta/${targetPath}`, {
       method: req.method,
-      headers: { "Content-Type": req.headers["content-type"] || "application/json" },
+      headers: {
+        "Content-Type": req.headers["content-type"] || "application/json",
+        "x-goog-api-key": apiKey,
+      },
       body,
     });
 
-    const body = Buffer.from(await upstream.arrayBuffer());
+    const responseBody = Buffer.from(await upstream.arrayBuffer());
     res.status(upstream.status);
     res.setHeader("Content-Type", upstream.headers.get("content-type") || "application/json");
-    res.send(body);
+    res.send(responseBody);
   } catch {
     res.status(502).json({ error: { message: "Falha ao contatar o Gemini." } });
   }
 });
+
+app.get("/api/health", (req, res) => res.json({ ok: true }));
+
+// ── Frontend estatico ────────────────────────────────────────────────────────
 
 app.use(express.static(distPath));
 app.get("*", (req, res) => {
@@ -204,5 +277,7 @@ app.get("*", (req, res) => {
 });
 
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`Server running on port ${PORT}`);
+  console.log(`Dominios liberados: ${ALLOWED_EMAIL_DOMAINS.join(", ")}`);
+  console.log(`Admins configurados: ${ADMIN_EMAILS.length}`);
 });

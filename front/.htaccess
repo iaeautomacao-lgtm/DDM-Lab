@@ -1,0 +1,44 @@
+# Enviar para a RAIZ da app no cPanel: /home/grpia/apps/ddm-labs/.htaccess
+#
+# O Node (server.js) serve apenas a pasta dist/. Este arquivo e a rede de
+# seguranca para o caso de o Apache/LiteSpeed tambem servir a pasta da app como
+# conteudo estatico — o que exporia .env, server.js e todo o codigo-fonte.
+#
+# Teste depois de subir:
+#   curl -i https://labs.grupoddm.ia.br/.env          -> deve dar 403 ou 404
+#   curl -i https://labs.grupoddm.ia.br/server.js     -> deve dar 403 ou 404
+#   curl -i https://labs.grupoddm.ia.br/package.json  -> deve dar 403 ou 404
+#   curl -i https://labs.grupoddm.ia.br/api/health    -> deve dar 200 {"ok":true}
+
+# ── Bloquear segredos e codigo-fonte ─────────────────────────────────────────
+<FilesMatch "^\.env.*|^\.git.*|^package.*\.json$|^server\.js$|^vite\.config\..*|^tsconfig\.json$|.*\.(ts|tsx|log|sql|pem|key|p12|pfx)$">
+  Require all denied
+</FilesMatch>
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  # Diretorios que nunca podem ser servidos pela web
+  RewriteRule ^(\.git|\.well-known/acme-challenge/\.\.|node_modules|src|backend)/ - [F,L]
+</IfModule>
+
+# Bloquear listagem de diretorio
+Options -Indexes
+
+# ── Cabecalhos de seguranca ──────────────────────────────────────────────────
+# Redundantes com o helmet no Node, mas cobrem respostas servidas pelo Apache.
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+  Header always unset X-Powered-By
+  Header always unset Server
+</IfModule>
+
+# ── Forcar HTTPS ─────────────────────────────────────────────────────────────
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{HTTPS} !=on
+  RewriteCond %{HTTP:X-Forwarded-Proto} !https
+  RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+</IfModule>

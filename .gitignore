@@ -17,10 +17,11 @@ env/
 node_modules/
 
 # Build and test output
-build/
-dist/
-coverage/
-lib/
+# Ancorado na raiz: a regra solta "lib/" estava excluindo front/src/lib/ —
+# 19 arquivos de logica de auth, Supabase e chamada de IA ficaram fora do git.
+/build/
+/coverage/
+/lib/
 
 # Logs and temporary files
 *.log
@@ -44,3 +45,7 @@ temp/
 # OS/editor noise
 .DS_Store
 Thumbs.db
+
+# Build output (nao versionar: risco de vazar env inlinada no bundle)
+dist/
+front/dist/
