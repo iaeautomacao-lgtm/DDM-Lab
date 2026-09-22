@@ -78,16 +78,21 @@ app.use(
 );
 app.use(helmet.hsts({ maxAge: 31536000, includeSubDomains: true, preload: true }));
 
-// Same-origin por padrao: a app serve o proprio frontend. CORS_ORIGINS so no dev.
+// Same-origin por padrao: a app serve o proprio frontend. CORS_ORIGINS so no dev
+// (Vite em porta separada). O navegador manda o header Origin mesmo em
+// requisicoes same-origin (nao so em cross-origin) — comparar so "origin
+// vazio = same-origin" e furada: bloqueia a propria app. Usa optionsDelegate
+// pra comparar contra o proprio host da requisicao.
 const CORS_ORIGINS = parseList(process.env.CORS_ORIGINS, "");
 app.use(
-  cors({
-    origin: (origin, callback) => {
-      if (!origin) return callback(null, true);
-      if (CORS_ORIGINS.includes(origin.toLowerCase())) return callback(null, true);
-      return callback(new Error("Origem nao permitida."));
-    },
-    credentials: true,
+  cors((req, callback) => {
+    const origin = req.headers.origin;
+    const ownOrigin = `${req.protocol}://${req.get("host")}`;
+
+    if (!origin || origin === ownOrigin || CORS_ORIGINS.includes(origin.toLowerCase())) {
+      return callback(null, { origin: true, credentials: true });
+    }
+    return callback(null, { origin: false, credentials: true });
   }),
 );
 
