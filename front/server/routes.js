@@ -25,7 +25,7 @@ import {
   RESET_COOKIE,
 } from "./authCore.js";
 import { sendPasswordResetCode } from "./mailer.js";
-import { upload, saveFile, getFileRow, readFileBuffer, deleteFile, fileUrl } from "./storage.js";
+import { upload, saveFile, getFileRow, readFileBuffer, deleteFile, fileUrl, isInlineSafeMimeType } from "./storage.js";
 
 const router = Router();
 const uuid = () => crypto.randomUUID();
@@ -909,13 +909,21 @@ router.post(
   h(async (req, res) => {
     if (!req.file) return res.status(400).json({ error: { message: "Arquivo obrigatorio." } });
 
-    const saved = await saveFile({
-      bucket: "rh-arquivos",
-      buffer: req.file.buffer,
-      originalName: req.file.originalname,
-      mimeType: req.file.mimetype,
-      ownerId: req.user.id,
-    });
+    let saved;
+    try {
+      saved = await saveFile({
+        bucket: "rh-arquivos",
+        buffer: req.file.buffer,
+        originalName: req.file.originalname,
+        mimeType: req.file.mimetype,
+        ownerId: req.user.id,
+      });
+    } catch (err) {
+      if (err.code === "INVALID_MIME_TYPE") {
+        return res.status(400).json({ error: { message: "Tipo de arquivo nao permitido. Use imagem, PDF, Word, Excel, PowerPoint ou texto." } });
+      }
+      throw err;
+    }
 
     res.status(201).json({
       nome: req.file.originalname,
@@ -1143,13 +1151,21 @@ router.post(
       return res.status(413).json({ error: { message: "Imagem muito grande." } });
     }
 
-    const saved = await saveFile({
-      bucket: "creator-images",
-      buffer,
-      originalName: `${Date.now()}.${mimeType.split("/")[1] || "png"}`,
-      mimeType,
-      ownerId: req.user.id,
-    });
+    let saved;
+    try {
+      saved = await saveFile({
+        bucket: "creator-images",
+        buffer,
+        originalName: `${Date.now()}.${mimeType.split("/")[1] || "png"}`,
+        mimeType,
+        ownerId: req.user.id,
+      });
+    } catch (err) {
+      if (err.code === "INVALID_MIME_TYPE") {
+        return res.status(400).json({ error: { message: "Formato de imagem nao permitido." } });
+      }
+      throw err;
+    }
 
     res.status(201).json({ imageUrl: fileUrl(saved.id) });
   }),
@@ -1359,6 +1375,14 @@ router.get(
     if (!buffer) return res.status(404).json({ error: { message: "Arquivo nao encontrado no disco." } });
 
     res.setHeader("Content-Type", row.mime_type || "application/octet-stream");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    // So os tipos da allowlist de "inline seguro" renderizam dentro da app;
+    // qualquer outra coisa forca download — mesmo que a validacao no upload
+    // falhe ou um arquivo antigo tenha mime_type fora do padrao.
+    res.setHeader(
+      "Content-Disposition",
+      isInlineSafeMimeType(row.mime_type) ? "inline" : `attachment; filename="${encodeURIComponent(row.original_name || "arquivo")}"`,
+    );
     res.setHeader("Cache-Control", "private, max-age=3600");
     res.send(buffer);
   }),

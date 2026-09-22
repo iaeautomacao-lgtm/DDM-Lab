@@ -19,6 +19,36 @@ const ensureBucketDir = async (bucket) => {
 
 const isValidBucket = (bucket) => BUCKETS.includes(bucket);
 
+// Allowlist de tipo por bucket. O mime type que chega no upload e o que o
+// NAVEGADOR do cliente declarou — nao prova nada sobre o conteudo real do
+// arquivo, mas barra o caso obvio de alguem subir um .html/.svg/.js e a
+// aplicacao devolver isso com Content-Type executavel na propria origem
+// (stored XSS via anexo). Nada de html/svg/xml/script em nenhum bucket.
+const ALLOWED_MIME_TYPES = {
+  "rh-arquivos": new Set([
+    "image/png", "image/jpeg", "image/gif", "image/webp",
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.ms-powerpoint",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "text/plain",
+  ]),
+  "creator-images": new Set(["image/png", "image/jpeg", "image/webp"]),
+};
+
+// So estes tipos sao seguros pra renderizar inline no navegador. Todo o
+// resto sai com Content-Disposition: attachment (forca download, nunca
+// executa/renderiza dentro da origem da aplicacao).
+const INLINE_SAFE_MIME_TYPES = new Set([
+  "image/png", "image/jpeg", "image/gif", "image/webp", "application/pdf", "text/plain",
+]);
+
+export const isAllowedMimeType = (bucket, mimeType) => ALLOWED_MIME_TYPES[bucket]?.has(mimeType) ?? false;
+export const isInlineSafeMimeType = (mimeType) => INLINE_SAFE_MIME_TYPES.has(mimeType);
+
 /** Multer em memoria: arquivos sao pequenos (imagens/documentos de RH). */
 export const upload = multer({
   storage: multer.memoryStorage(),
@@ -28,6 +58,9 @@ export const upload = multer({
 /** Salva um buffer no bucket, registra em stored_files, retorna a linha. */
 export const saveFile = async ({ bucket, buffer, originalName, mimeType, ownerId }) => {
   if (!isValidBucket(bucket)) throw new Error(`Bucket invalido: ${bucket}`);
+  if (!isAllowedMimeType(bucket, mimeType)) {
+    throw Object.assign(new Error(`Tipo de arquivo nao permitido: ${mimeType}`), { code: "INVALID_MIME_TYPE" });
+  }
   await ensureBucketDir(bucket);
 
   const ext = path.extname(originalName || "").slice(0, 10) || "";
