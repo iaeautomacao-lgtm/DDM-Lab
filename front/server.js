@@ -1,4 +1,4 @@
-import "./server/loadEnv.js"; // precisa ser o primeiro import — ver o comentario no arquivo
+import { APP_ROOT } from "./server/loadEnv.js"; // precisa ser o primeiro import — ver o comentario no arquivo
 import express from "express";
 import path from "path";
 import helmet from "helmet";
@@ -11,7 +11,7 @@ import apiRoutes from "./server/routes.js";
 
 const app = express();
 const PORT = Number(process.env.PORT || 3001);
-const distPath = path.join(process.cwd(), "dist");
+const distPath = path.join(APP_ROOT, "dist");
 
 // Fail fast: sem banco ou sem segredo de JWT o app nao tem como autenticar
 // ninguem. Melhor nao subir do que subir com auth quebrada.
@@ -21,13 +21,6 @@ if (!process.env.DB_HOST || !process.env.DB_USER || !process.env.DB_NAME) {
 }
 if (!process.env.JWT_ACCESS_SECRET || process.env.JWT_ACCESS_SECRET.length < 32) {
   console.error("FATAL: JWT_ACCESS_SECRET ausente ou curto demais. Servidor nao vai subir.");
-  process.exit(1);
-}
-
-try {
-  await db.ping();
-} catch (err) {
-  console.error("FATAL: nao foi possivel conectar ao MariaDB.", err.message);
   process.exit(1);
 }
 
@@ -250,8 +243,19 @@ app.get("*", (req, res) => {
   res.sendFile(path.join(distPath, "index.html"));
 });
 
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`Dominios liberados: ${ALLOWED_EMAIL_DOMAINS.join(", ")}`);
-  console.log(`Admins configurados: ${ADMIN_EMAILS.length}`);
-});
+// Sem top-level await de proposito: o Passenger do cPanel carrega o app.js
+// via require(), e require() de ESM falha com ERR_REQUIRE_ASYNC_MODULE se
+// houver await no topo de qualquer modulo do grafo. Checagem do banco roda
+// antes do listen, via promise.
+db.ping()
+  .then(() => {
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on port ${PORT}`);
+      console.log(`Dominios liberados: ${ALLOWED_EMAIL_DOMAINS.join(", ")}`);
+      console.log(`Admins configurados: ${ADMIN_EMAILS.length}`);
+    });
+  })
+  .catch((err) => {
+    console.error("FATAL: nao foi possivel conectar ao MariaDB.", err.message);
+    process.exit(1);
+  });

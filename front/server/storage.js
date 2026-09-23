@@ -3,11 +3,12 @@ import path from "path";
 import crypto from "crypto";
 import multer from "multer";
 import { db } from "./db.js";
+import { APP_ROOT } from "./loadEnv.js";
 
 // Fora do docroot por padrao (../storage a partir de front/), para que nenhum
 // servidor estatico (Apache/LiteSpeed/express.static) consiga servir os
 // arquivos direto — tudo passa pela rota autenticada /api/files.
-const STORAGE_ROOT = path.resolve(process.cwd(), process.env.STORAGE_DIR || "../storage");
+const STORAGE_ROOT = path.resolve(APP_ROOT, process.env.STORAGE_DIR || "../storage");
 
 const BUCKETS = ["creator-images", "rh-arquivos"];
 
