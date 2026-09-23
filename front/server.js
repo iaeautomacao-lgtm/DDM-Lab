@@ -38,6 +38,10 @@ const ADMIN_EMAILS = parseList(process.env.ADMIN_EMAILS, "");
 // so admin escreve/apaga (chamado apenas por Admin.tsx).
 const OPENAI_ROUTES = [
   { pattern: /^responses$/, methods: ["POST"], adminOnly: false },
+  // DDM Creator com gpt-image-1: geracao simples, e edicao quando ha logo ou
+  // imagem de referencia (o endpoint de edicao aceita imagens de entrada).
+  { pattern: /^images\/generations$/, methods: ["POST"], adminOnly: false },
+  { pattern: /^images\/edits$/, methods: ["POST"], adminOnly: false },
   { pattern: /^files$/, methods: ["POST"], adminOnly: true },
   { pattern: /^files\/[A-Za-z0-9_-]+$/, methods: ["GET", "DELETE"], adminOnly: true },
   { pattern: /^vector_stores$/, methods: ["GET", "POST"], adminOnly: true },

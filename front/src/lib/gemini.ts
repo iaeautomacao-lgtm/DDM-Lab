@@ -1,5 +1,8 @@
 import type { FileInput } from './openai';
 import { geminiFetch } from './aiProxy';
+import { generateImageWithOpenAI, OpenAIImageError } from './openaiImage';
+
+export type ImageProvider = 'gemini' | 'openai';
 
 const GEMINI_MODEL = 'gemini-2.5-flash';
 
@@ -245,11 +248,23 @@ export const generateImageOptimized = async (
     negativePrompt?: string;
     maxRetries?: number;
     onRetry?: (attempt: number, error: string) => void;
+    provider?: ImageProvider;
   },
 ): Promise<{ imageUrl: string; optimizedPrompt: string }> => {
-  if (!isGeminiAvailable) throw new Error('O Gemini esta desativado nesta instalacao.');
+  const { colors, logoBase64, referenceBase64, negativePrompt, maxRetries = 3, onRetry, provider = 'gemini' } = options || {};
 
-  const { colors, logoBase64, referenceBase64, negativePrompt, maxRetries = 3, onRetry } = options || {};
+  if (provider === 'openai') {
+    return generateImageOptimizedWithOpenAI(prompt, aspectRatio, {
+      colors,
+      logoBase64,
+      referenceBase64,
+      negativePrompt,
+      maxRetries,
+      onRetry,
+    });
+  }
+
+  if (!isGeminiAvailable) throw new Error('O Gemini esta desativado nesta instalacao.');
 
   // Step 1: Optimize prompt via gemini-2.5-flash
   const OPTIMIZER_SYSTEM = `You are an image prompt engineer. Your ONLY job is to translate the user's request into a precise English prompt for an image generation model.
@@ -357,6 +372,57 @@ RULES:
     }
   }
   throw new Error('Falha após várias tentativas.');
+};
+
+// Caminho OpenAI (gpt-image-1). Nao passa pelo otimizador do Gemini: o
+// gpt-image-1 entende o pedido em portugues direto, e assim a geracao nao
+// depende da chave do Gemini estar funcionando. Logo e referencias vao como
+// imagens de entrada.
+const generateImageOptimizedWithOpenAI = async (
+  prompt: string,
+  aspectRatio: ImageAspectRatio,
+  options: {
+    colors?: { primary: string; accent: string };
+    logoBase64?: string | null;
+    referenceBase64?: string | string[] | null;
+    negativePrompt?: string;
+    maxRetries: number;
+    onRetry?: (attempt: number, error: string) => void;
+  },
+): Promise<{ imageUrl: string; optimizedPrompt: string }> => {
+  const { colors, logoBase64, referenceBase64, negativePrompt, maxRetries, onRetry } = options;
+  const refs = referenceBase64 ? (Array.isArray(referenceBase64) ? referenceBase64 : [referenceBase64]) : [];
+
+  let finalPrompt = prompt.trim();
+  if (refs.length > 0) {
+    finalPrompt += `\n\nUse as imagens de referencia anexadas apenas como inspiracao de estilo visual (composicao, iluminacao, tons de cor). Nao copie os elementos delas nem adicione nada que nao foi pedido.`;
+  }
+  if (colors) {
+    finalPrompt += `\n\nPaleta de cores obrigatoria: cor dominante ${colors.primary} (fundos, formas, elementos principais) e cor de destaque ${colors.accent} (detalhes, bordas, elementos secundarios). Nao use outras cores dominantes.`;
+  }
+  if (negativePrompt) {
+    finalPrompt += `\n\nNao inclua na imagem: ${negativePrompt}.`;
+  }
+  if (logoBase64) {
+    finalPrompt += `\n\nA primeira imagem anexada e o logo da marca: coloque exatamente esse logo visivel na composicao, preservando cores, formas, simbolos e texto originais, sem alterar nem distorcer.`;
+  }
+
+  const inputImages = [...(logoBase64 ? [logoBase64] : []), ...refs];
+
+  let attempt = 0;
+  for (;;) {
+    try {
+      const imageUrl = await generateImageWithOpenAI(finalPrompt, aspectRatio, inputImages);
+      return { imageUrl, optimizedPrompt: finalPrompt };
+    } catch (err) {
+      const status = err instanceof OpenAIImageError ? err.status : 0;
+      const retryable = status === 429 || status >= 500 || status === 0;
+      attempt++;
+      if (!retryable || attempt >= maxRetries) throw err;
+      if (onRetry) onRetry(attempt, (err as Error).message);
+      await sleep(Math.pow(2, attempt) * 1000);
+    }
+  }
 };
 
 export const generateChatResponseWithGemini = async (

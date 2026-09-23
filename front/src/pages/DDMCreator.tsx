@@ -4,7 +4,7 @@ import {
   Copy, Loader2, Upload, AlertCircle, Plus, Pencil,
   ImageIcon, Check, SlidersHorizontal, History, Wand2,
 } from 'lucide-react';
-import { generateImageOptimized, generateCaption } from '../lib/gemini';
+import { generateImageOptimized, generateCaption, type ImageProvider } from '../lib/gemini';
 import { useUser } from '../hooks/useUser';
 import {
   uploadCreatorImage, saveCreatorImage,
@@ -42,7 +42,13 @@ interface CreatorDraft {
   logoUrl: string | null;
   logoBase64: string | null;
   referenceImages: ReferenceImage[];
+  imageProvider?: ImageProvider;
 }
+
+const IMAGE_PROVIDERS: Array<{ value: ImageProvider; label: string; hint: string }> = [
+  { value: 'gemini', label: 'Gemini', hint: 'Google · rápido' },
+  { value: 'openai', label: 'GPT Image', hint: 'OpenAI · mais fiel ao texto' },
+];
 
 export const DDMCreator = () => {
   const { userData } = useUser();
@@ -53,6 +59,7 @@ export const DDMCreator = () => {
   const [generatedImages, setGeneratedImages] = useState<GeneratedResult[]>([]);
   const [activeVariation, setActiveVariation] = useState(1);
   const [aspectRatio, setAspectRatio] = useState('1:1');
+  const [imageProvider, setImageProvider] = useState<ImageProvider>('gemini');
   const [expandedPrompts, setExpandedPrompts] = useState<Record<number, boolean>>({});
   const [generationStatus, setGenerationStatus] = useState<{ message: string; isRetry?: boolean } | null>(null);
   const [includeCaption, setIncludeCaption] = useState(false);
@@ -96,6 +103,7 @@ export const DDMCreator = () => {
         setLogoUrl(draft.logoUrl ?? null);
         setLogoBase64(draft.logoBase64 ?? null);
         setReferenceImages(Array.isArray(draft.referenceImages) ? draft.referenceImages : []);
+        setImageProvider(draft.imageProvider === 'openai' ? 'openai' : 'gemini');
       } catch {}
     }
   }, []);
@@ -118,10 +126,12 @@ export const DDMCreator = () => {
       logoUrl,
       logoBase64,
       referenceImages,
+      imageProvider,
     };
 
     localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
   }, [
+    imageProvider,
     prompt,
     negativePrompt,
     activeVariation,
@@ -244,9 +254,11 @@ export const DDMCreator = () => {
       const colors = primaryColor && accentColor ? { primary: primaryColor, accent: accentColor } : undefined;
       const count = customPrompt ? 1 : Math.min(activeVariation, remaining);
       const currentRatio = aspectRatio;
+      const currentProvider = imageProvider;
+      const providerLabel = currentProvider === 'openai' ? 'GPT Image' : 'Gemini';
 
       const promises = Array.from({ length: count }).map(async () => {
-        setGenerationStatus({ message: 'Gerando imagem com Gemini...' });
+        setGenerationStatus({ message: `Gerando imagem com ${providerLabel}...` });
         const result = await generateImageOptimized(target, currentRatio as any, {
           colors,
           logoBase64,
@@ -254,6 +266,7 @@ export const DDMCreator = () => {
           negativePrompt: negativePrompt || undefined,
           maxRetries: 3,
           onRetry,
+          provider: currentProvider,
         });
 
         let caption: string | undefined;
@@ -349,6 +362,30 @@ export const DDMCreator = () => {
                   }`}
                 >
                   {n}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Motor de geracao */}
+          <div>
+            <label className="text-xs font-medium text-text-secondary block mb-2">Motor de IA</label>
+            <div className="flex gap-2" role="radiogroup" aria-label="Motor de IA">
+              {IMAGE_PROVIDERS.map(p => (
+                <button
+                  key={p.value}
+                  role="radio"
+                  aria-checked={imageProvider === p.value}
+                  onClick={() => setImageProvider(p.value)}
+                  disabled={isGenerating}
+                  className={`flex-1 py-1.5 px-2 rounded text-left transition-colors border disabled:opacity-60 ${
+                    imageProvider === p.value
+                      ? 'bg-primary/10 text-primary border-primary/30'
+                      : 'bg-surface-hover text-text-secondary border-border hover:text-foreground'
+                  }`}
+                >
+                  <span className="block text-xs font-medium">{p.label}</span>
+                  <span className="block text-[10px] opacity-70">{p.hint}</span>
                 </button>
               ))}
             </div>
