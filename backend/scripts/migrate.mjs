@@ -37,8 +37,16 @@ import crypto from "crypto";
 import dotenv from "dotenv";
 import mysql from "mysql2/promise";
 import pg from "pg";
+import { fileURLToPath } from "url";
 
-dotenv.config({ path: path.resolve(process.cwd(), "../.env.local") });
+// Caminhos a partir deste arquivo, nao do cwd. Credenciais do Supabase ficam
+// num arquivo separado (backend/.env.migration) que so existe durante a
+// migracao — o .env.local de producao nao precisa carregar esses segredos.
+// dotenv nao sobrescreve: o que estiver no .env.local (DB_*) vale.
+const BACKEND_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const APP_ROOT = path.resolve(BACKEND_DIR, "../front");
+dotenv.config({ path: path.join(BACKEND_DIR, ".env.local") });
+dotenv.config({ path: path.join(BACKEND_DIR, ".env.migration") });
 
 const args = new Set(process.argv.slice(2));
 const DRY_RUN = args.has("--dry-run");
@@ -65,11 +73,24 @@ const pgConfig = process.env.SUPABASE_DB_HOST
     : null;
 
 if (!SUPABASE_URL || !SERVICE_KEY) {
-  console.error("FATAL: defina SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY em backend/.env.local.");
+  console.error("FATAL: defina SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY em backend/.env.migration.");
   process.exit(1);
 }
 
-const STORAGE_ROOT = path.resolve(process.cwd(), process.env.STORAGE_DIR || "../../storage");
+// Mesmo calculo do app (front/server/storage.js): STORAGE_DIR relativo a front/.
+const STORAGE_ROOT = path.resolve(APP_ROOT, process.env.STORAGE_DIR || "../storage");
+
+// Ids de usuario que existem no MariaDB depois da etapa users. Toda linha que
+// referencia usuario (FK) e checada contra isso: conta excluida (EXCLUDE_EMAILS)
+// ou sem profile nao pode derrubar a migracao por violacao de chave estrangeira.
+const migratedUserIds = new Set();
+const userOrNull = (id) => (id && migratedUserIds.has(id) ? id : null);
+
+const ensureUserIds = async () => {
+  if (migratedUserIds.size || DRY_RUN) return;
+  const [rows] = await pool.query(`SELECT id FROM users`);
+  rows.forEach((r) => migratedUserIds.add(r.id));
+};
 
 // ── MariaDB de destino ───────────────────────────────────────────────────────
 
@@ -149,6 +170,12 @@ const asJson = (value, fallback = []) => {
 const toDatetime = (value) => (value ? new Date(value) : null);
 
 const uuid = () => crypto.randomUUID();
+
+/** UUID estavel derivado de uma string (mesma entrada = mesmo id). */
+const deterministicUuid = (input) => {
+  const h = crypto.createHash("sha256").update(input).digest("hex");
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20, 32)}`;
+};
 
 const emailDomain = (email) => String(email || "").split("@")[1]?.toLowerCase() || "";
 const parseList = (value) =>
@@ -232,6 +259,17 @@ const migrateUsers = async () => {
 
     const role = profile.role === "admin" || profile.role === "rh" ? profile.role : roleForEmail(email);
 
+    // Conta criada direto no MariaDB antes da migracao (ex.: admin de teste)
+    // com o mesmo e-mail e outro id: a do Supabase e a verdadeira — tem a
+    // senha original e e o id que conversas/imagens referenciam.
+    if (!DRY_RUN) {
+      const [conflicts] = await pool.query(`SELECT id FROM users WHERE email = ? AND id <> ?`, [email, id]);
+      if (conflicts.length) {
+        await pool.query(`DELETE FROM users WHERE email = ? AND id <> ?`, [email, id]);
+        console.log(`  substituida conta local de mesmo e-mail (${email}) pela do Supabase`);
+      }
+    }
+
     await run(
       `INSERT INTO users (id, email, password_hash, full_name, preferred_name, avatar_url, role, department, unit, job_title, maturity_level, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -254,6 +292,7 @@ const migrateUsers = async () => {
         toDatetime(profile.created_at || auth?.created_at) || new Date(),
       ],
     );
+    migratedUserIds.add(id);
     migrated += 1;
   }
 
@@ -301,21 +340,26 @@ const migrateConversas = async () => {
   const conversas = await fetchTable("conversas");
   console.log(`  conversas lidas: ${conversas.length}`);
 
+  const migratedConversaIds = new Set();
   for (const row of conversas) {
-    if (!row.criado_por) continue; // sem dono, nao migra (FK exige criado_por)
+    // FK exige dono existente — conta excluida/sem profile fica de fora.
+    if (!row.id || !userOrNull(row.criado_por)) continue;
     await run(
       `INSERT INTO conversas (id, criado_por, title, current_model, created_at)
        VALUES (?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE id = id`,
-      [row.id || uuid(), row.criado_por, row.titulo || "Nova conversa", row.modelo_atual || null, toDatetime(row.created_at) || new Date()],
+      [row.id, row.criado_por, row.titulo || "Nova conversa", row.modelo_atual || null, toDatetime(row.created_at) || new Date()],
     );
+    migratedConversaIds.add(row.id);
   }
 
   const mensagens = await fetchTable("mensagens");
   console.log(`  mensagens lidas: ${mensagens.length}`);
 
+  let mensagensMigradas = 0;
   for (const row of mensagens) {
-    if (!row.conversa_id) continue;
+    if (!migratedConversaIds.has(row.conversa_id)) continue;
+    mensagensMigradas += 1;
     await run(
       `INSERT INTO mensagens (id, conversa_id, role, content, model_used, created_at)
        VALUES (?, ?, ?, ?, ?, ?)
@@ -330,7 +374,9 @@ const migrateConversas = async () => {
       ],
     );
   }
-  console.log(`  migrados: ${conversas.length} conversas, ${mensagens.length} mensagens`);
+  console.log(
+    `  migrados: ${migratedConversaIds.size}/${conversas.length} conversas, ${mensagensMigradas}/${mensagens.length} mensagens`,
+  );
 };
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -341,8 +387,10 @@ const migrateFeed = async () => {
   console.log("\n== feed ==");
 
   const posts = await fetchTable("feed_posts");
+  const migratedPostIds = new Set();
   for (const row of posts) {
-    if (!row.user_id) continue;
+    if (!row.id || !userOrNull(row.user_id)) continue;
+    migratedPostIds.add(row.id);
     await run(
       `INSERT INTO feed_posts (id, user_id, content, image_url, created_at) VALUES (?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE id = id`,
@@ -352,7 +400,7 @@ const migrateFeed = async () => {
 
   const comments = await fetchTable("feed_comments");
   for (const row of comments) {
-    if (!row.post_id || !row.user_id) continue;
+    if (!migratedPostIds.has(row.post_id) || !userOrNull(row.user_id)) continue;
     await run(
       `INSERT INTO feed_comments (id, post_id, user_id, content, created_at) VALUES (?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE id = id`,
@@ -362,7 +410,7 @@ const migrateFeed = async () => {
 
   const reactions = await fetchTable("feed_reactions");
   for (const row of reactions) {
-    if (!row.post_id || !row.user_id) continue;
+    if (!migratedPostIds.has(row.post_id) || !userOrNull(row.user_id)) continue;
     await run(
       `INSERT INTO feed_reactions (post_id, user_id, created_at) VALUES (?, ?, ?)
        ON DUPLICATE KEY UPDATE post_id = post_id`,
@@ -387,7 +435,10 @@ const migrateRH = async () => {
   console.log("\n== RH (informativos, visualizacoes, knowledge) ==");
 
   const informativos = await fetchTable("rh_informativos");
+  const migratedInformativoIds = new Set();
   for (const row of informativos) {
+    if (!row.id) continue;
+    migratedInformativoIds.add(row.id);
     const anexos = (row.anexos || []).map((a) => ({ ...a, url: rewriteUrl(a.url) }));
     await run(
       `INSERT INTO rh_informativos (id, titulo, conteudo, autor_nome, anexos, respostas, ativo, created_at, updated_at)
@@ -409,7 +460,7 @@ const migrateRH = async () => {
 
   const visualizacoes = await fetchTable("rh_visualizacoes");
   for (const row of visualizacoes) {
-    if (!row.informativo_id || !row.user_uid) continue;
+    if (!migratedInformativoIds.has(row.informativo_id) || !userOrNull(row.user_uid)) continue;
     await run(
       `INSERT INTO rh_visualizacoes (informativo_id, user_uid, user_nome, viewed_at) VALUES (?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE viewed_at = VALUES(viewed_at)`,
@@ -430,7 +481,7 @@ const migrateRH = async () => {
         row.category || null,
         asJson(row.tags),
         row.status === "published" ? "published" : "draft",
-        row.created_by || null,
+        userOrNull(row.created_by),
         toDatetime(row.created_at) || new Date(),
         toDatetime(row.updated_at || row.created_at) || new Date(),
       ],
@@ -471,7 +522,7 @@ const migratePrompts = async () => {
 
   const custom = await fetchTable("prompts_customizados");
   for (const row of custom) {
-    if (!row.user_id) continue;
+    if (!userOrNull(row.user_id)) continue;
     await run(
       `INSERT INTO prompts_customizados (id, user_id, title, department, tone, purpose, prompt_text, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -506,7 +557,7 @@ const migrateMisc = async () => {
     await run(
       `INSERT INTO agent_configs (department, system_prompt, updated_by, updated_at) VALUES (?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE system_prompt = VALUES(system_prompt)`,
-      [row.department, row.system_prompt || "", row.updated_by || null, toDatetime(row.updated_at) || new Date()],
+      [row.department, row.system_prompt || "", userOrNull(row.updated_by), toDatetime(row.updated_at) || new Date()],
     );
   }
 
@@ -528,7 +579,7 @@ const migrateMisc = async () => {
       `INSERT INTO knowledge_base_docs (id, file_name, openai_file_id, size_bytes, uploaded_by, created_at)
        VALUES (?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE id = id`,
-      [row.id || uuid(), row.file_name || "", row.openai_file_id || "", row.size_bytes || null, row.uploaded_by || null, toDatetime(row.created_at) || new Date()],
+      [row.id || uuid(), row.file_name || "", row.openai_file_id || "", row.size_bytes || null, userOrNull(row.uploaded_by), toDatetime(row.created_at) || new Date()],
     );
   }
 
@@ -539,7 +590,7 @@ const migrateMisc = async () => {
        ON DUPLICATE KEY UPDATE id = id`,
       [
         row.id || uuid(),
-        row.user_id || null,
+        userOrNull(row.user_id),
         row.content || row.conteudo || "",
         row.categoria || null,
         ["pendente", "lida", "arquivada"].includes(row.status) ? row.status : "pendente",
@@ -617,7 +668,9 @@ const migrateStorage = async () => {
       }
 
       const buffer = Buffer.from(await fileRes.arrayBuffer());
-      const id = uuid();
+      // Id deterministico (bucket + caminho original): rodar a migracao de
+      // novo reaproveita o mesmo registro em vez de duplicar arquivo.
+      const id = deterministicUuid(`${bucket}/${file.path}`);
       const ext = path.extname(file.path);
       const storageKey = `${id}${ext}`;
 
@@ -625,12 +678,16 @@ const migrateStorage = async () => {
         await fs.writeFile(path.join(STORAGE_ROOT, bucket, storageKey), buffer);
       }
 
+      // creator-images guarda em <userId>/<arquivo>: o dono e o 1o segmento.
+      // Sem isso o /api/files/:id negaria a imagem ao proprio dono.
+      const ownerId = bucket === "creator-images" ? userOrNull(file.path.split("/")[0]) : null;
+
       const mimeType = file.metadata?.mimetype || "application/octet-stream";
       await run(
         `INSERT INTO stored_files (id, bucket, storage_key, original_name, mime_type, size_bytes, owner_id)
-         VALUES (?, ?, ?, ?, ?, ?, NULL)
-         ON DUPLICATE KEY UPDATE id = id`,
-        [id, bucket, storageKey, file.path, mimeType, buffer.length],
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE owner_id = VALUES(owner_id)`,
+        [id, bucket, storageKey, file.path, mimeType, buffer.length, ownerId],
       );
 
       storageUrlMap.set(oldPublicUrl, `/api/files/${id}`);
@@ -644,9 +701,13 @@ const migrateCreatorImages = async () => {
   console.log("\n== creator_images (metadados) ==");
   const rows = await fetchTable("creator_images");
 
+  let migrados = 0;
+  let semArquivo = 0;
   for (const row of rows) {
-    if (!row.user_id) continue;
+    if (!userOrNull(row.user_id)) continue;
     const newUrl = rewriteUrl(row.image_url) || row.image_url;
+    if (!String(newUrl).startsWith("/api/files/")) semArquivo += 1;
+    migrados += 1;
     await run(
       `INSERT INTO creator_images (id, user_id, prompt, storage_key, mime_type, created_at)
        VALUES (?, ?, ?, ?, 'image/png', ?)
@@ -654,7 +715,10 @@ const migrateCreatorImages = async () => {
       [row.id || uuid(), row.user_id, row.optimized_prompt || row.caption || null, newUrl || "", toDatetime(row.created_at) || new Date()],
     );
   }
-  console.log(`  migrados: ${rows.length}`);
+  console.log(`  migrados: ${migrados}/${rows.length}`);
+  if (semArquivo) {
+    console.warn(`  ATENCAO: ${semArquivo} imagem(ns) sem arquivo correspondente no Storage — ficam com a URL antiga do Supabase.`);
+  }
 };
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -682,6 +746,9 @@ const main = async () => {
 
   for (const [name, fn] of STEPS) {
     if (ONLY && ONLY !== name) continue;
+    // Com --only=<etapa> a etapa users nao roda nesta execucao: carrega do
+    // banco quem ja foi migrado, pra checagem de FK continuar valendo.
+    if (name !== "users") await ensureUserIds();
     await fn();
   }
 
