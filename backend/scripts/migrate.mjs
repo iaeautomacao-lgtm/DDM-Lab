@@ -217,7 +217,9 @@ const migrateUsers = async () => {
       );
       authUsers = rows;
     } catch (err) {
-      console.error(`  falha ao conectar/consultar o Postgres direto: ${err.message}`);
+      // AggregateError (varios enderecos tentados) vem com message vazio.
+      const detail = err.message || err.code || (err.errors || []).map((e) => e.code || e.message).join(", ");
+      console.error(`  falha ao conectar/consultar o Postgres direto: ${detail}`);
       console.error("  seguindo sem hash de senha — usuarios vao precisar de 'Esqueci minha senha'.");
     } finally {
       await client.end().catch(() => {});
@@ -253,7 +255,12 @@ const migrateUsers = async () => {
     // usado no login novo. Sem o hash, gera um valor aleatorio impossivel de
     // adivinhar; o usuario destrava a conta pelo fluxo de recuperacao de senha.
     if (!passwordHash) {
-      passwordHash = `$2b$12$${crypto.randomBytes(22).toString("base64").replace(/[^A-Za-z0-9./]/g, "0").slice(0, 53)}`;
+      // Formato bcrypt valido ($2b$12$ + 53 chars do alfabeto bcrypt): o
+      // bcryptjs compara normalmente e nunca bate. Formato invalido fazia o
+      // login responder 500 em vez de "senha incorreta".
+      const BCRYPT_ALPHABET = "./ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+      const random = Array.from(crypto.randomBytes(53), (b) => BCRYPT_ALPHABET[b % 64]).join("");
+      passwordHash = `$2b$12$${random}`;
       noPasswordEmails.push(email);
     }
 
@@ -282,7 +289,7 @@ const migrateUsers = async () => {
         email,
         passwordHash,
         profile.full_name || email.split("@")[0],
-        profile.preferred_name || null,
+        profile.preferred_name || "",
         profile.avatar_url || null,
         role,
         profile.department || "Geral",

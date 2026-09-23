@@ -29,7 +29,8 @@ export const RESET_COOKIE = "ddm_pwreset";
 // ── Senhas ────────────────────────────────────────────────────────────────
 
 export const hashPassword = (plain) => bcrypt.hash(plain, 12);
-export const verifyPassword = (plain, hash) => bcrypt.compare(plain, hash);
+// Hash malformado = login negado (401), nunca erro 500.
+export const verifyPassword = (plain, hash) => bcrypt.compare(plain, hash).catch(() => false);
 
 // ── Tokens ────────────────────────────────────────────────────────────────
 

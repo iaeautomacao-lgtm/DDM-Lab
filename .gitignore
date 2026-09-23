@@ -53,3 +53,6 @@ front/dist/
 # Uploads locais (substitui Supabase Storage) — nunca versionar
 /storage/
 front/storage/
+
+# Saida de scripts de migracao (pode conter hash de senha) — nunca versionar
+backend/scripts/out/
