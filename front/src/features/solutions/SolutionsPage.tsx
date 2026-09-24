@@ -116,15 +116,15 @@ export const SolutionsPage = () => {
             <Metric label="Planejadas" value={stats?.totals.planejados ?? 0} icon={<Plus size={19} />} />
           </section>
 
-          <div className="relative">
-            <Search size={17} className="absolute left-4 top-1/2 -translate-y-1/2 text-text-secondary/60" />
+          <label className="flex h-12 items-center gap-3 rounded-xl border border-border bg-surface px-4 shadow-[var(--shadow-card)] transition focus-within:border-primary/40">
+            <Search size={17} className="shrink-0 text-text-secondary/60" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar solução, ferramenta ou responsável..."
-              className="h-12 w-full rounded-xl border border-border bg-surface pl-11 pr-4 text-sm outline-none placeholder:text-text-secondary/50 focus:border-primary/40"
+              className="w-full bg-transparent text-sm outline-none placeholder:text-text-secondary/50"
             />
-          </div>
+          </label>
 
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold text-foreground">Todas as soluções</h2>
@@ -232,8 +232,10 @@ export const SolutionsPage = () => {
 const SectorButton = ({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) => (
   <button
     onClick={onClick}
-    className={`whitespace-nowrap rounded-lg border px-3.5 py-2 text-xs font-medium transition-colors ${
-      active ? 'border-primary/30 bg-primary/10 text-primary' : 'border-border bg-surface text-text-secondary hover:text-foreground'
+    className={`whitespace-nowrap rounded-xl border px-4 py-2 text-sm font-medium transition-colors ${
+      active
+        ? 'border-primary/30 bg-primary/10 text-primary'
+        : 'border-border bg-surface text-text-secondary hover:border-border/60 hover:text-foreground'
     }`}
   >
     {label}
@@ -269,11 +271,13 @@ const Metric = ({
   icon: React.ReactNode;
   highlighted?: boolean;
 }) => (
-  <Card className={`p-5 ${highlighted ? 'border-primary/25 bg-primary/5' : ''}`}>
-    <div className="mb-4 flex items-center justify-between">
-      <span className="text-xs font-medium uppercase tracking-[0.12em] text-text-secondary">{label}</span>
-      <div className="text-primary">{icon}</div>
+  <Card className={`rounded-2xl p-5 shadow-[var(--shadow-card)] transition-all duration-200 hover:-translate-y-0.5 ${highlighted ? 'border-primary/30' : 'hover:border-border/60'}`}>
+    <div className="flex items-start justify-between gap-4">
+      <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-text-secondary/70">{label}</span>
+      <div className={`grid size-9 shrink-0 place-items-center rounded-xl ${highlighted ? 'bg-primary/10 text-primary' : 'bg-surface-hover text-primary'}`}>
+        {icon}
+      </div>
     </div>
-    <strong className="text-3xl font-extrabold text-foreground">{value}</strong>
+    <strong className="mt-6 block text-3xl font-semibold tracking-tight text-foreground">{value}</strong>
   </Card>
 );

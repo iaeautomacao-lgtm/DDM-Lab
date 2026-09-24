@@ -32,7 +32,7 @@ interface Props {
 }
 
 export const ProjectRow = ({ project, onSelect }: Props) => (
-  <Card hoverable onClick={() => onSelect?.(project)} className="p-5">
+  <Card hoverable onClick={() => onSelect?.(project)} className="rounded-2xl p-5 shadow-[var(--shadow-card)] transition-all duration-200 hover:border-border/60">
     <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
