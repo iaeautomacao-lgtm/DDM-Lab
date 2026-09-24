@@ -107,6 +107,7 @@ e criado.
 
 - `002_add_solutions.sql` — tabela `solutions` (painel de Solucoes)
 - `003_add_projects.sql` — tabela `projects` (projetos/tarefas por setor) + `solutions.problem_solved`
+- `004_add_sector_operacao_qualidade.sql` — setor "Operação e Qualidade" em `solutions` e `projects`
 
 ## Arquivos
 

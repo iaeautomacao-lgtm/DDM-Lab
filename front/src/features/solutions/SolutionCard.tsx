@@ -1,7 +1,10 @@
 import { motion } from 'framer-motion';
-import { ArrowUpRight, Bot, Gauge, LayoutDashboard, Settings2 } from 'lucide-react';
+import { ArrowUpRight, Bot, Gauge, Globe, LayoutDashboard, Settings2 } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
-import type { Solution, SolutionType } from './types';
+import { SECTOR_OPTIONS, type Solution, type SolutionType } from './types';
+
+// Mostra o link sem "https://" e sem barra final: meeting.grupoddm.ia.br/app
+const displayUrl = (url: string) => url.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
 
 const TYPE_ICONS: Record<SolutionType, React.ElementType> = {
   dashboard: LayoutDashboard,
@@ -56,12 +59,26 @@ export const SolutionCard = ({ solution, onSelect }: Props) => {
         </div>
 
         <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-text-secondary">
-          {solution.sector.replace('_', ' ')}
+          {SECTOR_OPTIONS.find((s) => s.value === solution.sector)?.label ?? solution.sector}
         </div>
 
         <h3 className="mb-2 text-lg font-bold text-foreground">{solution.title}</h3>
 
         <p className="line-clamp-3 min-h-[60px] text-sm leading-5 text-text-secondary">{solution.summary}</p>
+
+        {solution.url && (
+          <a
+            href={solution.url}
+            target="_blank"
+            rel="noreferrer"
+            onClick={(event) => event.stopPropagation()}
+            className="mt-3 inline-flex max-w-full items-center gap-1.5 text-xs font-medium text-primary hover:underline"
+            title={solution.url}
+          >
+            <Globe size={13} className="shrink-0" />
+            <span className="truncate">{displayUrl(solution.url)}</span>
+          </a>
+        )}
 
         {solution.problem_solved && (
           <div className="mt-4 rounded-xl border border-border bg-surface-hover/40 p-3">
