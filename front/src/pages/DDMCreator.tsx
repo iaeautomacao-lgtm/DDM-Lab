@@ -30,6 +30,21 @@ interface ReferenceImage {
 
 const STORAGE_KEY = 'ddm_creator_generations';
 const DRAFT_STORAGE_KEY = 'ddm_creator_draft';
+// Guarda so as ultimas imagens no cache local (o historico completo ja fica
+// salvo no servidor via saveCreatorImage) — evita estourar a cota do
+// localStorage (5-10MB) com base64 de imagem acumulando sem limite.
+const MAX_CACHED_GENERATIONS = 8;
+
+// localStorage.setItem pode lancar (cota cheia, modo privado, storage
+// bloqueado). Nunca deixa isso derrubar a tela: o rascunho e so uma
+// conveniencia, nao pode crashar o app.
+const safeSetItem = (key: string, value: string) => {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // ignora — pior caso, o rascunho/cache nao persiste
+  }
+};
 
 interface CreatorDraft {
   prompt: string;
@@ -110,11 +125,14 @@ export const DDMCreator = () => {
 
   useEffect(() => {
     if (generatedImages.length > 0) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(generatedImages));
+      safeSetItem(STORAGE_KEY, JSON.stringify(generatedImages.slice(0, MAX_CACHED_GENERATIONS)));
     }
   }, [generatedImages]);
 
   useEffect(() => {
+    // Logo e referencias sao data URLs (podem passar de 1-2MB cada) — nao vao
+    // pro rascunho local, so os campos de texto/preferencia. Reabrir a pagina
+    // pede pra reanexar logo/referencia, mas nunca trava por cota estourada.
     const draft: CreatorDraft = {
       prompt,
       negativePrompt,
@@ -123,13 +141,13 @@ export const DDMCreator = () => {
       includeCaption,
       primaryColor,
       accentColor,
-      logoUrl,
-      logoBase64,
-      referenceImages,
+      logoUrl: null,
+      logoBase64: null,
+      referenceImages: [],
       imageProvider,
     };
 
-    localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
+    safeSetItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
   }, [
     imageProvider,
     prompt,
