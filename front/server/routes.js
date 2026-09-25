@@ -26,6 +26,7 @@ import {
 } from "./authCore.js";
 import { sendPasswordResetCode } from "./mailer.js";
 import { upload, saveFile, getFileRow, readFileBuffer, deleteFile, fileUrl, isInlineSafeMimeType } from "./storage.js";
+import { buildPptxBuffer, isValidDeck } from "./pptxBuilder.js";
 
 const router = Router();
 const uuid = () => crypto.randomUUID();
@@ -2043,6 +2044,16 @@ router.get(
 
 const PRESENTATION_THEMES = ["claro", "escuro", "ddm"];
 
+// Montar o .pptx e trabalho de CPU no processo do servidor (nao e chamada de
+// IA) — limite so pra segurar abuso, bem mais folgado que o da IA.
+const pptxExportLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.user?.id || ipKeyGenerator(req.ip),
+});
+
 router.get(
   "/presentations",
   requireAuth,
@@ -2140,6 +2151,29 @@ router.delete(
     }
     await db.exec(`DELETE FROM presentations WHERE id = ?`, [req.params.id]);
     res.json({ ok: true });
+  }),
+);
+
+// Gera o .pptx no servidor (nao no navegador) e devolve o arquivo pronto.
+// Aceita tanto um deck ainda nao salvo (recem-gerado pela IA) quanto um
+// salvo — o front sempre manda title/theme/slides no corpo.
+router.post(
+  "/presentations/export",
+  requireAuth,
+  pptxExportLimiter,
+  h(async (req, res) => {
+    const { title, theme, slides } = req.body || {};
+    if (!isValidDeck({ title, theme, slides })) {
+      return res.status(400).json({ error: { message: "Dados da apresentacao invalidos para exportar." } });
+    }
+
+    const buffer = await buildPptxBuffer({ title: title.trim(), theme, slides });
+
+    const safeName = title.trim().replace(/[^\p{L}\p{N}\s-]/gu, "").replace(/\s+/g, "-") || "apresentacao";
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.presentationml.presentation");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Content-Disposition", `attachment; filename="${safeName}.pptx"`);
+    res.send(buffer);
   }),
 );
 
