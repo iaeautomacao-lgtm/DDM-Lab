@@ -2043,6 +2043,15 @@ router.get(
 // ══════════════════════════════════════════════════════════════════════════
 
 const PRESENTATION_THEMES = ["claro", "escuro", "ddm"];
+const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+const LOGO_DATA_URL_RE = /^data:image\/(png|jpeg|webp);base64,/;
+const MAX_LOGO_DATA_URL_LENGTH = 2.8 * 1024 * 1024;
+
+const isValidHexColor = (value) => value === undefined || value === null || HEX_COLOR_RE.test(value);
+const isValidLogoDataUrl = (value) =>
+  value === undefined ||
+  value === null ||
+  (LOGO_DATA_URL_RE.test(value) && value.length <= MAX_LOGO_DATA_URL_LENGTH);
 
 // Montar o .pptx e trabalho de CPU no processo do servidor (nao e chamada de
 // IA) — limite so pra segurar abuso, bem mais folgado que o da IA.
@@ -2059,7 +2068,7 @@ router.get(
   requireAuth,
   h(async (req, res) => {
     const rows = await db.query(
-      `SELECT id, title, objective, theme, created_by, created_at, updated_at
+      `SELECT id, title, objective, theme, primary_color, accent_color, created_by, created_at, updated_at
        FROM presentations WHERE created_by = ? ORDER BY updated_at DESC`,
       [req.user.id],
     );
@@ -2084,18 +2093,35 @@ router.post(
   "/presentations",
   requireAuth,
   h(async (req, res) => {
-    const { title, objective, theme, slides } = req.body || {};
+    const { title, objective, theme, slides, primaryColor, accentColor, logoDataUrl } = req.body || {};
     if (!title?.trim() || !Array.isArray(slides) || slides.length === 0) {
       return res.status(400).json({ error: { message: "Titulo e ao menos um slide sao obrigatorios." } });
     }
     if (theme && !PRESENTATION_THEMES.includes(theme)) {
       return res.status(400).json({ error: { message: "Tema invalido." } });
     }
+    if (!isValidHexColor(primaryColor) || !isValidHexColor(accentColor)) {
+      return res.status(400).json({ error: { message: "Cor invalida." } });
+    }
+    if (!isValidLogoDataUrl(logoDataUrl)) {
+      return res.status(400).json({ error: { message: "Logo invalido ou grande demais." } });
+    }
 
     const id = uuid();
     await db.exec(
-      `INSERT INTO presentations (id, title, objective, theme, slides, created_by) VALUES (?, ?, ?, ?, ?, ?)`,
-      [id, title.trim(), objective?.trim() || null, theme || "ddm", JSON.stringify(slides), req.user.id],
+      `INSERT INTO presentations (id, title, objective, theme, primary_color, accent_color, logo_data_url, slides, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id,
+        title.trim(),
+        objective?.trim() || null,
+        theme || "ddm",
+        primaryColor || null,
+        accentColor || null,
+        logoDataUrl || null,
+        JSON.stringify(slides),
+        req.user.id,
+      ],
     );
 
     const row = await db.queryOne(`SELECT * FROM presentations WHERE id = ?`, [id]);
@@ -2113,9 +2139,15 @@ router.put(
       return res.status(403).json({ error: { message: "Sem permissao." } });
     }
 
-    const { title, objective, theme, slides } = req.body || {};
+    const { title, objective, theme, slides, primaryColor, accentColor, logoDataUrl } = req.body || {};
     if (theme && !PRESENTATION_THEMES.includes(theme)) {
       return res.status(400).json({ error: { message: "Tema invalido." } });
+    }
+    if (!isValidHexColor(primaryColor) || !isValidHexColor(accentColor)) {
+      return res.status(400).json({ error: { message: "Cor invalida." } });
+    }
+    if (!isValidLogoDataUrl(logoDataUrl)) {
+      return res.status(400).json({ error: { message: "Logo invalido ou grande demais." } });
     }
 
     const set = [];
@@ -2128,6 +2160,9 @@ router.put(
     push("title", title?.trim());
     if (objective !== undefined) push("objective", objective?.trim() || null);
     push("theme", theme);
+    if (primaryColor !== undefined) push("primary_color", primaryColor || null);
+    if (accentColor !== undefined) push("accent_color", accentColor || null);
+    if (logoDataUrl !== undefined) push("logo_data_url", logoDataUrl || null);
     if (slides !== undefined) push("slides", JSON.stringify(slides));
 
     if (set.length) {
@@ -2162,12 +2197,12 @@ router.post(
   requireAuth,
   pptxExportLimiter,
   h(async (req, res) => {
-    const { title, theme, slides } = req.body || {};
-    if (!isValidDeck({ title, theme, slides })) {
+    const { title, theme, slides, primaryColor, accentColor, logoDataUrl } = req.body || {};
+    if (!isValidDeck({ title, theme, slides, primaryColor, accentColor, logoDataUrl })) {
       return res.status(400).json({ error: { message: "Dados da apresentacao invalidos para exportar." } });
     }
 
-    const buffer = await buildPptxBuffer({ title: title.trim(), theme, slides });
+    const buffer = await buildPptxBuffer({ title: title.trim(), theme, slides, primaryColor, accentColor, logoDataUrl });
 
     const safeName = title.trim().replace(/[^\p{L}\p{N}\s-]/gu, "").replace(/\s+/g, "-") || "apresentacao";
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.presentationml.presentation");

@@ -55,9 +55,25 @@ const addFooter = (slide, colors, pageLabel) => {
   });
 };
 
-const buildSlide = (pptx, slide, colors, index, total, brandName) => {
+// Logo pequeno, tamanho fixo — nunca deixa o pptxgenjs auto-detectar
+// dimensao (evita cair no parser de imagem vulneravel a DoS pra arquivos
+// maliciosos; aqui e sempre um logo que o proprio dono da apresentacao subiu).
+const LOGO_W = 0.9;
+const LOGO_H = 0.45;
+
+const addLogo = (s, logoDataUrl, corner) => {
+  if (!logoDataUrl) return;
+  const pos =
+    corner === "cover"
+      ? { x: SLIDE_W - MARGIN - LOGO_W, y: 0.5 }
+      : { x: SLIDE_W - MARGIN - LOGO_W, y: SLIDE_H - 0.5 - LOGO_H };
+  s.addImage({ data: logoDataUrl, x: pos.x, y: pos.y, w: LOGO_W, h: LOGO_H, sizing: { type: "contain", w: LOGO_W, h: LOGO_H } });
+};
+
+const buildSlide = (pptx, slide, colors, index, total, brandName, logoDataUrl) => {
   const s = pptx.addSlide();
   s.background = { color: hex(colors.background) };
+  addLogo(s, logoDataUrl, slide.type === "capa" ? "cover" : "footer");
 
   const pageLabel = slide.type === "capa" ? brandName : `${brandName} · ${index + 1}/${total}`;
 
@@ -217,26 +233,43 @@ const buildSlide = (pptx, slide, colors, index, total, brandName) => {
   addFooter(s, colors, pageLabel);
 };
 
+const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+const LOGO_DATA_URL_RE = /^data:image\/(png|jpeg|webp);base64,/;
+// ~2MB decodificado (base64 e ~33% maior que o binario original).
+const MAX_LOGO_DATA_URL_LENGTH = 2.8 * 1024 * 1024;
+
 /** Valida o formato minimo de um deck antes de gastar tempo/CPU montando o pptx. */
-export const isValidDeck = ({ title, theme, slides }) =>
+export const isValidDeck = ({ title, theme, slides, primaryColor, accentColor, logoDataUrl }) =>
   Boolean(title?.trim()) &&
   VALID_THEMES.has(theme) &&
   Array.isArray(slides) &&
   slides.length > 0 &&
   slides.length <= 40 &&
-  slides.every((s) => s && typeof s === "object" && VALID_TYPES.has(s.type));
+  slides.every((s) => s && typeof s === "object" && VALID_TYPES.has(s.type)) &&
+  (primaryColor === undefined || primaryColor === null || HEX_COLOR_RE.test(primaryColor)) &&
+  (accentColor === undefined || accentColor === null || HEX_COLOR_RE.test(accentColor)) &&
+  (logoDataUrl === undefined ||
+    logoDataUrl === null ||
+    (LOGO_DATA_URL_RE.test(logoDataUrl) && logoDataUrl.length <= MAX_LOGO_DATA_URL_LENGTH));
 
 /** Monta o .pptx inteiro no processo do servidor e devolve o buffer pronto pra download. */
-export const buildPptxBuffer = async ({ title, theme, slides }) => {
+export const buildPptxBuffer = async ({ title, theme, slides, primaryColor, accentColor, logoDataUrl }) => {
   const pptx = new PptxGenJS();
   pptx.defineLayout({ name: "DDM_WIDE", width: SLIDE_W, height: SLIDE_H });
   pptx.layout = "DDM_WIDE";
   pptx.author = "DDM Lab";
   pptx.title = title;
 
-  const colors = SLIDE_THEMES[theme];
+  // Cor da marca sobrescreve o acento fixo do tema quando a pessoa escolhe
+  // uma — o resto da paleta (fundo/texto/bordas) continua vindo do tema.
+  const colors = {
+    ...SLIDE_THEMES[theme],
+    ...(primaryColor ? { accent: primaryColor } : {}),
+    ...(accentColor ? { accentSoft: accentColor } : {}),
+  };
+
   slides.forEach((slide, index) => {
-    buildSlide(pptx, slide, colors, index, slides.length, "Grupo DDM");
+    buildSlide(pptx, slide, colors, index, slides.length, "Grupo DDM", logoDataUrl);
   });
 
   return pptx.write({ outputType: "nodebuffer" });

@@ -25,13 +25,20 @@ export interface Presentation {
   title: string;
   objective: string | null;
   theme: PresentationTheme;
+  primary_color: string | null;
+  accent_color: string | null;
+  logo_data_url: string | null;
   slides: Slide[];
   created_by: string | null;
   created_at: string;
   updated_at: string;
 }
 
-export type PresentationSummary = Omit<Presentation, 'slides'>;
+// A listagem (historico) nao traz o logo — pode ser pesado e nao e usado ali.
+export type PresentationSummary = Omit<Presentation, 'slides' | 'logo_data_url'>;
+
+export const SLIDE_COUNT_OPTIONS = [5, 7, 9, 12] as const;
+export type SlideCount = (typeof SLIDE_COUNT_OPTIONS)[number];
 
 export const THEME_OPTIONS: Array<{ value: PresentationTheme; label: string; hint: string }> = [
   { value: 'ddm', label: 'DDM', hint: 'Escuro com identidade da marca' },
@@ -53,6 +60,9 @@ export interface PresentationInput {
   title: string;
   objective?: string;
   theme: PresentationTheme;
+  primaryColor?: string | null;
+  accentColor?: string | null;
+  logoDataUrl?: string | null;
   slides: Slide[];
 }
 

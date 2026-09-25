@@ -1,7 +1,11 @@
 import { ApiError } from './apiClient';
 import type { Presentation } from './presentationsData';
 
-export type ExportableDeck = Pick<Presentation, 'title' | 'theme' | 'slides'>;
+export type ExportableDeck = Pick<Presentation, 'title' | 'theme' | 'slides'> & {
+  primaryColor?: string | null;
+  accentColor?: string | null;
+  logoDataUrl?: string | null;
+};
 
 /**
  * Pede pro servidor montar o .pptx (pptxgenjs roda no processo Node, nao no

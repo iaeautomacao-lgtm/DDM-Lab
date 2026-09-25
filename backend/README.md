@@ -112,6 +112,7 @@ e criado.
 - `006_roles_and_restricted_solutions.sql` — niveis de usuario (gestor/diretor) + `solutions.restricted`
 - `007_skills.sql` — tabela `skills` (aba Skills dentro de Modelos Prontos: upload/moderacao/download de .zip)
 - `008_presentations.sql` — tabela `presentations` (DDM Apresentacoes: gerador de apresentacoes com IA)
+- `009_presentations_branding.sql` — cores da marca + logo por apresentacao
 
 ## Arquivos
 

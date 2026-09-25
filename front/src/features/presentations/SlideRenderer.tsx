@@ -1,17 +1,19 @@
 import type { PresentationTheme, Slide } from '../../lib/presentationsData';
-import { SLIDE_THEMES } from '../../lib/slideThemes';
+import { resolveThemeColors, type BrandOverrides } from '../../lib/slideThemes';
 
 interface Props {
   slide: Slide;
   theme: PresentationTheme;
   index: number;
   total: number;
+  brand?: BrandOverrides;
+  logoDataUrl?: string | null;
 }
 
 // Renderiza o slide com cores fixas do tema (nao os tokens claro/escuro do
 // app) — precisa parecer exatamente com o que vira no .pptx exportado.
-export const SlideRenderer = ({ slide, theme, index, total }: Props) => {
-  const c = SLIDE_THEMES[theme];
+export const SlideRenderer = ({ slide, theme, index, total, brand, logoDataUrl }: Props) => {
+  const c = resolveThemeColors(theme, brand);
   const isCover = slide.type === 'capa';
 
   return (
@@ -21,6 +23,13 @@ export const SlideRenderer = ({ slide, theme, index, total }: Props) => {
     >
       {isCover && <div className="absolute inset-y-0 left-0 w-2" style={{ background: c.accent }} />}
       {slide.type === 'fechamento' && <div className="absolute inset-x-0 top-0 h-1.5" style={{ background: c.accent }} />}
+      {logoDataUrl && (
+        <img
+          src={logoDataUrl}
+          alt=""
+          className={`absolute right-[4%] h-[9%] max-w-[16%] object-contain ${isCover ? 'top-[5%]' : 'bottom-[5%]'}`}
+        />
+      )}
 
       <div className="flex flex-1 flex-col p-[5%]">
         {slide.type === 'capa' && (

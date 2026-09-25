@@ -14,6 +14,18 @@ export interface SlideThemeColors {
   border: string;
 }
 
+export interface BrandOverrides {
+  primaryColor?: string | null;
+  accentColor?: string | null;
+}
+
+/** Aplica cor da marca por cima da paleta do tema — mesma logica do server/pptxBuilder.js. */
+export const resolveThemeColors = (theme: PresentationTheme, overrides?: BrandOverrides): SlideThemeColors => ({
+  ...SLIDE_THEMES[theme],
+  ...(overrides?.primaryColor ? { accent: overrides.primaryColor } : {}),
+  ...(overrides?.accentColor ? { accentSoft: overrides.accentColor } : {}),
+});
+
 export const SLIDE_THEMES: Record<PresentationTheme, SlideThemeColors> = {
   ddm: {
     background: '#141110',

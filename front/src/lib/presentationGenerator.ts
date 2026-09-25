@@ -47,8 +47,16 @@ const parseJsonSafe = <T>(raw: string): T => {
 
 const VALID_TYPES = new Set(['capa', 'topicos', 'duas_colunas', 'citacao', 'fechamento']);
 
-export const generatePresentationDeck = async (title: string, objective: string): Promise<GeneratedDeck> => {
-  const userMessage = `Título da apresentação: "${title}"\nObjetivo / contexto: "${objective || 'Não especificado — use o bom senso a partir do título.'}"\n\nRetorne apenas o JSON pedido.`;
+export const generatePresentationDeck = async (
+  title: string,
+  objective: string,
+  slideCount?: number,
+): Promise<GeneratedDeck> => {
+  const countInstruction = slideCount
+    ? `A apresentação deve ter exatamente ${slideCount} slides no total (contando capa e fechamento) — ajuste a quantidade de slides de conteúdo pra bater nesse número.`
+    : 'Use entre 6 e 9 slides no total (contando capa e fechamento).';
+
+  const userMessage = `Título da apresentação: "${title}"\nObjetivo / contexto: "${objective || 'Não especificado — use o bom senso a partir do título.'}"\n${countInstruction}\n\nRetorne apenas o JSON pedido.`;
 
   const { text } = await callOpenAI(
     [
