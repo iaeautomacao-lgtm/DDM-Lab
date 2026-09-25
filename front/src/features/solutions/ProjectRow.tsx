@@ -48,7 +48,7 @@ export const ProjectRow = ({ project, onSelect }: Props) => (
         <p className="mt-2 max-w-3xl text-sm text-text-secondary">{project.description}</p>
 
         {project.solution_title && (
-          <p className="mt-3 text-xs text-text-secondary/70">
+          <p className="mt-3 text-xs text-text-tertiary">
             Solução vinculada: <span className="text-foreground">{project.solution_title}</span>
           </p>
         )}
@@ -64,7 +64,7 @@ export const ProjectRow = ({ project, onSelect }: Props) => (
         </div>
         <p className="mt-3 text-xs text-text-secondary">{project.owner_name || 'Sem responsável'}</p>
         {project.due_date && (
-          <p className="mt-1 text-xs text-text-secondary/70">
+          <p className="mt-1 text-xs text-text-tertiary">
             Prazo: {new Date(project.due_date).toLocaleDateString('pt-BR')}
           </p>
         )}

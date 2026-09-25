@@ -8,7 +8,9 @@
   --color-primary-hover: #E64900;
   --color-secondary: #344054;
   --color-border: rgba(255, 255, 255, 0.08);
+  --color-border-hover: rgba(255, 255, 255, 0.14);
   --color-text-secondary: rgba(255, 255, 255, 0.6);
+  --color-text-tertiary: rgba(255, 255, 255, 0.38);
   /* Semantic foreground: primary text color — white in dark, near-black in light */
   --color-foreground: #FFFFFF;
 
@@ -19,20 +21,22 @@
 }
 
 /* ─── Light theme overrides ────────────────────────────────────────────────── */
-/* Fundo neutro (nao mais bege) — cinza claro pro page, branco pras superficies,
-   pra deixar o laranja da marca funcionar como acento, nao como camada de fundo. */
+/* Tratamento proprio pro claro, nao inversao do escuro: cinza neutro de fundo,
+   branco nas superficies, laranja reservado pra acao/selecao. */
 .light {
-  --color-background: #F7F7F5;
+  --color-background: #F6F7F8;
   --color-surface: #FFFFFF;
-  --color-surface-hover: #FAF9F7;
+  --color-surface-hover: #FAFAFA;
   --color-primary: #FF5100;
   --color-primary-hover: #E64900;
   --color-secondary: #344054;
-  --color-border: #E7E3DE;
-  --color-text-secondary: rgba(32, 28, 25, 0.58);
-  --color-foreground: #201C19;
+  --color-border: #E6E7E9;
+  --color-border-hover: #D7D9DC;
+  --color-text-secondary: #666A70;
+  --color-text-tertiary: #989CA2;
+  --color-foreground: #18191B;
 
-  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.04), 0 8px 24px rgb(0 0 0 / 0.045);
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.025);
 }
 
 /* ─── Base ──────────────────────────────────────────────────────────────────── */

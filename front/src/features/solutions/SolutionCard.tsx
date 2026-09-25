@@ -54,7 +54,7 @@ export const SolutionCard = ({ solution, onSelect }: Props) => {
             <Icon size={20} />
           </div>
           <div className="flex items-center gap-1.5">
-            {solution.restricted && (
+            {Boolean(solution.restricted) && (
               <span
                 className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-500/10 text-amber-600"
                 title="Solução restrita — visível só para diretores, admins e quem criou"
@@ -69,7 +69,7 @@ export const SolutionCard = ({ solution, onSelect }: Props) => {
         </div>
 
         <div className="mt-5">
-          <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-text-secondary/70">
+          <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-text-tertiary">
             {SECTOR_OPTIONS.find((s) => s.value === solution.sector)?.label ?? solution.sector}
           </div>
 
@@ -80,7 +80,7 @@ export const SolutionCard = ({ solution, onSelect }: Props) => {
 
         {solution.problem_solved && (
           <div className="mt-4 rounded-xl border border-border bg-surface-hover/60 p-3">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-text-secondary/70">O que resolve</div>
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-text-tertiary">O que resolve</div>
             <p className="mt-1 line-clamp-2 text-xs leading-5 text-text-secondary">{solution.problem_solved}</p>
           </div>
         )}
@@ -101,7 +101,7 @@ export const SolutionCard = ({ solution, onSelect }: Props) => {
 
         <div className="mt-auto flex items-end justify-between border-t border-border pt-4">
           <div>
-            <span className="block text-[10px] uppercase tracking-wider text-text-secondary/70">Responsável</span>
+            <span className="block text-[10px] uppercase tracking-wider text-text-tertiary">Responsável</span>
             <span className="text-sm font-medium text-foreground">{solution.owner_name || 'Não definido'}</span>
           </div>
 

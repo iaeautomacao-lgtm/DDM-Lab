@@ -83,9 +83,9 @@ export const SolutionsPage = () => {
   const sectorLabel = sector === 'all' ? null : SECTOR_OPTIONS.find((s) => s.value === sector)?.label;
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 px-4 pb-20 md:px-0">
+    <div className="mx-auto max-w-7xl space-y-6 px-4 pb-20 md:px-0">
       <header>
-        <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-primary">DDM Lab</div>
+        <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-text-tertiary">DDM Lab</div>
         <h1 className="text-3xl font-extrabold tracking-tight">Soluções da empresa</h1>
         <p className="mt-2 max-w-2xl text-sm text-text-secondary">
           Dashboards, sistemas, automações e projetos de IA construídos pelos setores do Grupo DDM — consulte antes de
@@ -95,8 +95,9 @@ export const SolutionsPage = () => {
 
       {error && <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-400">{error}</div>}
 
-      {/* Selecao de setor: Visao Geral + cada setor */}
-      <nav className="flex gap-2 overflow-x-auto pb-1">
+      {/* Selecao de setor: Visao Geral + cada setor. Quebra linha em vez de
+          scroll horizontal — a barra de rolagem cinza embaixo ficava feia. */}
+      <nav className="flex flex-wrap gap-2">
         <SectorButton label="Visão Geral" active={sector === 'all'} onClick={() => setSector('all')} />
         {SECTOR_OPTIONS.map((opt) => (
           <SectorButton key={opt.value} label={opt.label} active={sector === opt.value} onClick={() => setSector(opt.value)} />
@@ -117,12 +118,12 @@ export const SolutionsPage = () => {
           </section>
 
           <label className="flex h-12 items-center gap-3 rounded-xl border border-border bg-surface px-4 shadow-[var(--shadow-card)] transition focus-within:border-primary/40">
-            <Search size={17} className="shrink-0 text-text-secondary/60" />
+            <Search size={17} className="shrink-0 text-text-tertiary" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar solução, ferramenta ou responsável..."
-              className="w-full bg-transparent text-sm outline-none placeholder:text-text-secondary/50"
+              className="w-full bg-transparent text-sm outline-none placeholder:text-text-tertiary"
             />
           </label>
 
@@ -148,7 +149,7 @@ export const SolutionsPage = () => {
           {/* Cabecalho do setor selecionado */}
           <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Portal do setor</span>
+              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-text-tertiary">Portal do setor</span>
               <h2 className="mt-2 text-2xl font-bold text-foreground">{sectorLabel}</h2>
               <p className="mt-2 text-sm text-text-secondary">
                 {sectorSolutions.length} soluções · {activeSectorProjects.length} projetos ativos
@@ -271,10 +272,10 @@ const Metric = ({
   icon: React.ReactNode;
   highlighted?: boolean;
 }) => (
-  <Card className={`rounded-2xl p-5 shadow-[var(--shadow-card)] transition-all duration-200 hover:-translate-y-0.5 ${highlighted ? 'border-primary/30' : 'hover:border-border/60'}`}>
+  <Card className="rounded-2xl p-5 shadow-[var(--shadow-card)] transition-all duration-200 hover:border-border-hover">
     <div className="flex items-start justify-between gap-4">
-      <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-text-secondary/70">{label}</span>
-      <div className={`grid size-9 shrink-0 place-items-center rounded-xl ${highlighted ? 'bg-primary/10 text-primary' : 'bg-surface-hover text-primary'}`}>
+      <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-text-tertiary">{label}</span>
+      <div className={`grid size-9 shrink-0 place-items-center rounded-xl ${highlighted ? 'bg-primary/10 text-primary' : 'bg-surface-hover text-text-secondary'}`}>
         {icon}
       </div>
     </div>
