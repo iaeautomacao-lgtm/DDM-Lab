@@ -393,6 +393,22 @@ CREATE TABLE IF NOT EXISTS skills (
   CONSTRAINT fk_skills_user FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ── DDM Apresentacoes (gerador de apresentacoes profissionais) ──────────────
+
+CREATE TABLE IF NOT EXISTS presentations (
+  id          CHAR(36)     NOT NULL PRIMARY KEY,
+  title       VARCHAR(200) NOT NULL,
+  objective   TEXT         NULL,
+  theme       ENUM('claro','escuro','ddm') NOT NULL DEFAULT 'ddm',
+  slides      JSON         NOT NULL,
+  created_by  CHAR(36)     NULL,
+  created_at  DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at  DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
+                           ON UPDATE CURRENT_TIMESTAMP(3),
+  KEY idx_presentations_user (created_by, updated_at),
+  CONSTRAINT fk_presentations_user FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ── Auditoria ───────────────────────────────────────────────────────────────
 -- Nao existia no Supabase. Entra agora: sem RLS, a trilha de quem fez o que
 -- passa a ser a principal evidencia em caso de incidente.

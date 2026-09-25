@@ -2035,4 +2035,112 @@ router.get(
   }),
 );
 
+// ══════════════════════════════════════════════════════════════════════════
+// DDM Apresentacoes — gerador de apresentacoes profissionais (parecido com o
+// DDM Creator, mas gera slides via IA em vez de imagem). So o dono (ou admin)
+// ve/edita os proprios decks — nao e um catalogo compartilhado como Solucoes.
+// ══════════════════════════════════════════════════════════════════════════
+
+const PRESENTATION_THEMES = ["claro", "escuro", "ddm"];
+
+router.get(
+  "/presentations",
+  requireAuth,
+  h(async (req, res) => {
+    const rows = await db.query(
+      `SELECT id, title, objective, theme, created_by, created_at, updated_at
+       FROM presentations WHERE created_by = ? ORDER BY updated_at DESC`,
+      [req.user.id],
+    );
+    res.json({ presentations: rows });
+  }),
+);
+
+router.get(
+  "/presentations/:id",
+  requireAuth,
+  h(async (req, res) => {
+    const row = await db.queryOne(`SELECT * FROM presentations WHERE id = ?`, [req.params.id]);
+    if (!row) return res.status(404).json({ error: { message: "Apresentacao nao encontrada." } });
+    if (row.created_by !== req.user.id && req.user.role !== "admin") {
+      return res.status(403).json({ error: { message: "Sem permissao." } });
+    }
+    res.json({ presentation: { ...row, slides: JSON.parse(row.slides || "[]") } });
+  }),
+);
+
+router.post(
+  "/presentations",
+  requireAuth,
+  h(async (req, res) => {
+    const { title, objective, theme, slides } = req.body || {};
+    if (!title?.trim() || !Array.isArray(slides) || slides.length === 0) {
+      return res.status(400).json({ error: { message: "Titulo e ao menos um slide sao obrigatorios." } });
+    }
+    if (theme && !PRESENTATION_THEMES.includes(theme)) {
+      return res.status(400).json({ error: { message: "Tema invalido." } });
+    }
+
+    const id = uuid();
+    await db.exec(
+      `INSERT INTO presentations (id, title, objective, theme, slides, created_by) VALUES (?, ?, ?, ?, ?, ?)`,
+      [id, title.trim(), objective?.trim() || null, theme || "ddm", JSON.stringify(slides), req.user.id],
+    );
+
+    const row = await db.queryOne(`SELECT * FROM presentations WHERE id = ?`, [id]);
+    res.status(201).json({ presentation: { ...row, slides: JSON.parse(row.slides || "[]") } });
+  }),
+);
+
+router.put(
+  "/presentations/:id",
+  requireAuth,
+  h(async (req, res) => {
+    const existing = await db.queryOne(`SELECT created_by FROM presentations WHERE id = ?`, [req.params.id]);
+    if (!existing) return res.status(404).json({ error: { message: "Apresentacao nao encontrada." } });
+    if (existing.created_by !== req.user.id && req.user.role !== "admin") {
+      return res.status(403).json({ error: { message: "Sem permissao." } });
+    }
+
+    const { title, objective, theme, slides } = req.body || {};
+    if (theme && !PRESENTATION_THEMES.includes(theme)) {
+      return res.status(400).json({ error: { message: "Tema invalido." } });
+    }
+
+    const set = [];
+    const params = [];
+    const push = (column, value) => {
+      if (value === undefined) return;
+      set.push(`${column} = ?`);
+      params.push(value);
+    };
+    push("title", title?.trim());
+    if (objective !== undefined) push("objective", objective?.trim() || null);
+    push("theme", theme);
+    if (slides !== undefined) push("slides", JSON.stringify(slides));
+
+    if (set.length) {
+      params.push(req.params.id);
+      await db.exec(`UPDATE presentations SET ${set.join(", ")} WHERE id = ?`, params);
+    }
+
+    const row = await db.queryOne(`SELECT * FROM presentations WHERE id = ?`, [req.params.id]);
+    res.json({ presentation: { ...row, slides: JSON.parse(row.slides || "[]") } });
+  }),
+);
+
+router.delete(
+  "/presentations/:id",
+  requireAuth,
+  h(async (req, res) => {
+    const existing = await db.queryOne(`SELECT created_by FROM presentations WHERE id = ?`, [req.params.id]);
+    if (!existing) return res.status(404).json({ error: { message: "Apresentacao nao encontrada." } });
+    if (existing.created_by !== req.user.id && req.user.role !== "admin") {
+      return res.status(403).json({ error: { message: "Sem permissao." } });
+    }
+    await db.exec(`DELETE FROM presentations WHERE id = ?`, [req.params.id]);
+    res.json({ ok: true });
+  }),
+);
+
 export default router;

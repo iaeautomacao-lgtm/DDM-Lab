@@ -111,6 +111,7 @@ e criado.
 - `005_split_operacao_qualidade.sql` — separa em dois setores: "Operação" e "Qualidade" (so precisa se aplicou o 004)
 - `006_roles_and_restricted_solutions.sql` — niveis de usuario (gestor/diretor) + `solutions.restricted`
 - `007_skills.sql` — tabela `skills` (aba Skills dentro de Modelos Prontos: upload/moderacao/download de .zip)
+- `008_presentations.sql` — tabela `presentations` (DDM Apresentacoes: gerador de apresentacoes com IA)
 
 ## Arquivos
 

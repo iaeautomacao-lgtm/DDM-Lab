@@ -11,6 +11,7 @@ import { ForgotPassword } from './pages/ForgotPassword';
 import { Generator } from './pages/Criar pedido';
 import { ImageGenerator } from './pages/GerarImagem';
 import { DDMCreator } from './pages/DDMCreator';
+import { Apresentacoes } from './pages/Apresentacoes';
 import { Library } from './pages/Library';
 import { Login } from './pages/Login';
 import { Profile } from './pages/Meu perfil';
@@ -50,6 +51,7 @@ function AppContent() {
             </Route>
 
             <Route path="ddmcreator" element={<DDMCreator />} />
+            <Route path="apresentacoes" element={<Apresentacoes />} />
             <Route path="settings" element={<Settings />} />
             <Route path="profile" element={<Profile />} />
             <Route path="*" element={<Navigate to="/" replace />} />

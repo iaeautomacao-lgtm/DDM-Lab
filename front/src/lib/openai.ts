@@ -120,7 +120,7 @@ const normalizeError = (error: unknown) => {
   return new Error('Não foi possível obter resposta da OpenAI no momento.');
 };
 
-const callOpenAI = async (
+export const callOpenAI = async (
   messages: Array<{ role: string; content: string | Array<unknown> }>,
   useFileSearch = true,
 ) => {

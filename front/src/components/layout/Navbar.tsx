@@ -13,6 +13,7 @@ const routeTitles: Record<string, { title: string; subtitle: string }> = {
   '/settings': { title: 'Configurações', subtitle: 'Uso responsável e preferências' },
   '/admin': { title: 'Administração', subtitle: 'Painel de controle' },
   '/ddmcreator': { title: 'DDM Creator', subtitle: 'Criação de imagens com IA' },
+  '/apresentacoes': { title: 'DDM Apresentações', subtitle: 'Gerador de apresentações profissionais com IA' },
   '/history': { title: 'Histórico', subtitle: 'Seus pedidos anteriores' },
   '/favorites': { title: 'Favoritos', subtitle: 'Templates salvos' },
 };
