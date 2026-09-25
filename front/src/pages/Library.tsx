@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Search, Star, ChevronRight, Info, Sparkles, X, ChevronDown, ChevronUp, RefreshCw, Check, Wand2, BookOpen } from 'lucide-react';
+import { Search, Star, ChevronRight, Info, Sparkles, X, ChevronDown, ChevronUp, RefreshCw, Check, Wand2, BookOpen, Bot, UploadCloud } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -14,6 +14,10 @@ import {
 } from '../lib/supabaseData';
 import { cn } from '../lib/utils';
 import { generateChatResponseWithOpenAI } from '../lib/openai';
+import { fetchSkills, type Skill } from '../lib/skillsData';
+import { SkillCard } from '../features/skills/SkillCard';
+import { UploadSkillModal } from '../features/skills/UploadSkillModal';
+import { SkillDetailsModal } from '../features/skills/SkillDetailsModal';
 
 type CustomPrompt = CustomPromptRecord;
 
@@ -406,7 +410,7 @@ Responda APENAS com um JSON válido neste formato exato (sem markdown, sem códi
 
 // ─── Main Library page ───────────────────────────────────────────────────────
 
-type LibraryTab = 'templates' | 'meus';
+type LibraryTab = 'templates' | 'meus' | 'skills';
 
 export const Library = () => {
   const navigate = useNavigate();
@@ -419,6 +423,10 @@ export const Library = () => {
   const [activeTab, setActiveTab] = useState<LibraryTab>('templates');
   const [customPrompts, setCustomPrompts] = useState<CustomPrompt[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [skills, setSkills] = useState<Skill[]>([]);
+  const [skillsLoading, setSkillsLoading] = useState(true);
+  const [showUploadSkillModal, setShowUploadSkillModal] = useState(false);
+  const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
 
 
   useEffect(() => {
@@ -454,6 +462,28 @@ export const Library = () => {
       .catch(() => setCustomPrompts([]));
   }, [user?.id]);
 
+  const loadSkills = useCallback(() => {
+    setSkillsLoading(true);
+    fetchSkills()
+      .then(setSkills)
+      .catch(() => setSkills([]))
+      .finally(() => setSkillsLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadSkills();
+  }, [loadSkills]);
+
+  const handleSkillUploaded = (skill: Skill) => {
+    setSkills((prev) => [skill, ...prev]);
+    setShowUploadSkillModal(false);
+    setSelectedSkill(skill);
+  };
+
+  const handleSkillChanged = () => {
+    loadSkills();
+  };
+
   const toggleFavorite = async (template: { basePrompt: string }) => {
     try {
       const isFav = favorites.includes(template.basePrompt);
@@ -475,6 +505,12 @@ export const Library = () => {
       t.name.toLowerCase().includes(search.toLowerCase()) ||
       t.description.toLowerCase().includes(search.toLowerCase());
     return matchesDept && matchesSearch;
+  });
+
+  const filteredSkills = skills.filter((s) => {
+    const term = search.toLowerCase().trim();
+    if (!term) return true;
+    return s.name.toLowerCase().includes(term) || s.description.toLowerCase().includes(term);
   });
 
   const filteredCustomPrompts = customPrompts.filter(p => {
@@ -527,13 +563,17 @@ export const Library = () => {
               Escolha um modelo que combine com o que você precisa e use agora mesmo.
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button
               variant="outline"
               onClick={() => setShowCreateModal(true)}
             >
               <Wand2 size={15} />
               Criar Prompt com IA
+            </Button>
+            <Button variant="outline" onClick={() => setShowUploadSkillModal(true)}>
+              <UploadCloud size={15} />
+              Enviar Skill
             </Button>
             <Button onClick={() => navigate('/generator')}>
               Pedir Novo Modelo
@@ -613,6 +653,23 @@ export const Library = () => {
             {customPrompts.length > 0 && (
               <span className="ml-1 px-1.5 py-0.5 rounded bg-primary/20 text-primary text-[10px] font-bold">
                 {customPrompts.length}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab('skills')}
+            className={cn(
+              'flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all',
+              activeTab === 'skills'
+                ? 'bg-primary/15 text-primary'
+                : 'text-text-secondary hover:text-foreground',
+            )}
+          >
+            <Bot size={13} />
+            Skills
+            {skills.length > 0 && (
+              <span className="ml-1 px-1.5 py-0.5 rounded bg-surface-hover text-[10px] font-bold">
+                {skills.length}
               </span>
             )}
           </button>
@@ -813,6 +870,48 @@ export const Library = () => {
               )}
             </motion.div>
           )}
+
+          {/* ── Tab: Skills ─────────────────────────────────── */}
+          {activeTab === 'skills' && (
+            <motion.div
+              key="tab-skills"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.22 }}
+            >
+              {skillsLoading ? (
+                <div className="flex justify-center py-20">
+                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
+                </div>
+              ) : filteredSkills.length === 0 ? (
+                <div className="text-center py-20 space-y-4">
+                  <div className="w-16 h-16 bg-surface rounded-full flex items-center justify-center mx-auto text-text-secondary">
+                    <Bot size={32} />
+                  </div>
+                  <h3 className="text-xl font-bold">Nenhuma skill por aqui ainda</h3>
+                  <p className="text-text-secondary">
+                    Envie um .zip com sua skill do Claude para compartilhar com o time.
+                  </p>
+                  <Button onClick={() => setShowUploadSkillModal(true)}>
+                    <UploadCloud size={15} />
+                    Enviar Skill
+                  </Button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {filteredSkills.map((skill) => (
+                    <SkillCard
+                      key={skill.id}
+                      skill={skill}
+                      isOwner={skill.created_by === user?.id}
+                      onSelect={setSelectedSkill}
+                    />
+                  ))}
+                </div>
+              )}
+            </motion.div>
+          )}
         </AnimatePresence>
       </div>
 
@@ -823,6 +922,23 @@ export const Library = () => {
             userId={user?.id ?? ''}
             onClose={() => setShowCreateModal(false)}
             onSaved={handlePromptSaved}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Skills: upload e detalhes */}
+      <AnimatePresence>
+        {showUploadSkillModal && (
+          <UploadSkillModal onClose={() => setShowUploadSkillModal(false)} onSaved={handleSkillUploaded} />
+        )}
+        {selectedSkill && (
+          <SkillDetailsModal
+            skill={selectedSkill}
+            onClose={() => setSelectedSkill(null)}
+            onChanged={() => {
+              handleSkillChanged();
+              setSelectedSkill(null);
+            }}
           />
         )}
       </AnimatePresence>

@@ -110,6 +110,7 @@ e criado.
 - `004_add_sector_operacao_qualidade.sql` — setor "Operação e Qualidade" em `solutions` e `projects`
 - `005_split_operacao_qualidade.sql` — separa em dois setores: "Operação" e "Qualidade" (so precisa se aplicou o 004)
 - `006_roles_and_restricted_solutions.sql` — niveis de usuario (gestor/diretor) + `solutions.restricted`
+- `007_skills.sql` — tabela `skills` (aba Skills dentro de Modelos Prontos: upload/moderacao/download de .zip)
 
 ## Arquivos
 

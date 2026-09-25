@@ -10,7 +10,7 @@ import { APP_ROOT } from "./loadEnv.js";
 // arquivos direto — tudo passa pela rota autenticada /api/files.
 const STORAGE_ROOT = path.resolve(APP_ROOT, process.env.STORAGE_DIR || "../storage");
 
-const BUCKETS = ["creator-images", "rh-arquivos"];
+const BUCKETS = ["creator-images", "rh-arquivos", "skills"];
 
 const bucketDir = (bucket) => path.join(STORAGE_ROOT, bucket);
 
@@ -38,6 +38,10 @@ const ALLOWED_MIME_TYPES = {
     "text/plain",
   ]),
   "creator-images": new Set(["image/png", "image/jpeg", "image/webp"]),
+  // O navegador manda tipos diferentes pra .zip dependendo do SO/navegador —
+  // aceita os mais comuns. A validacao de verdade (assinatura "PK" do
+  // arquivo) acontece na rota de upload, antes de chamar saveFile.
+  skills: new Set(["application/zip", "application/x-zip-compressed", "application/octet-stream"]),
 };
 
 // So estes tipos sao seguros pra renderizar inline no navegador. Todo o

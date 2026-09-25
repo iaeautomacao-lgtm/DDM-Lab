@@ -297,7 +297,7 @@ CREATE TABLE IF NOT EXISTS sugestoes (
 
 CREATE TABLE IF NOT EXISTS stored_files (
   id           CHAR(36)     NOT NULL PRIMARY KEY,
-  bucket       ENUM('creator-images','rh-arquivos') NOT NULL,
+  bucket       ENUM('creator-images','rh-arquivos','skills') NOT NULL,
   storage_key  VARCHAR(512) NOT NULL,
   original_name VARCHAR(255) NOT NULL,
   mime_type    VARCHAR(120) NOT NULL,
@@ -366,6 +366,31 @@ CREATE TABLE IF NOT EXISTS projects (
   KEY idx_projects_solution (solution_id),
   CONSTRAINT fk_projects_solution FOREIGN KEY (solution_id) REFERENCES solutions(id) ON DELETE SET NULL,
   CONSTRAINT fk_projects_user FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ── Skills (aba dentro de Modelos Prontos) ──────────────────────────────────
+-- Usuarios enviam .zip de skills do Claude pra compartilhar no Labs.
+
+CREATE TABLE IF NOT EXISTS skills (
+  id              CHAR(36)     NOT NULL PRIMARY KEY,
+  name            VARCHAR(180) NOT NULL,
+  description     TEXT         NOT NULL,
+  category        VARCHAR(100) NULL,
+  tags            JSON         NULL,
+  compatibility   VARCHAR(100) NOT NULL DEFAULT 'Claude',
+  version         VARCHAR(30)  NOT NULL DEFAULT '1.0.0',
+  visibility      ENUM('privada','em_revisao','publicada','rejeitada') NOT NULL DEFAULT 'privada',
+  moderation_note TEXT NULL,
+  file_id         CHAR(36)     NOT NULL,
+  download_count  INT UNSIGNED NOT NULL DEFAULT 0,
+  created_by      CHAR(36)     NULL,
+  created_at      DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at      DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
+                               ON UPDATE CURRENT_TIMESTAMP(3),
+  KEY idx_skills_visibility (visibility),
+  KEY idx_skills_created_by (created_by),
+  CONSTRAINT fk_skills_file FOREIGN KEY (file_id) REFERENCES stored_files(id) ON DELETE CASCADE,
+  CONSTRAINT fk_skills_user FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── Auditoria ───────────────────────────────────────────────────────────────

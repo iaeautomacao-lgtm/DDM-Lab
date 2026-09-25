@@ -1749,4 +1749,290 @@ router.put(
   }),
 );
 
+// ══════════════════════════════════════════════════════════════════════════
+// Skills — usuarios enviam .zip de skills do Claude pra compartilhar no Labs
+// (aba "Skills" dentro de Modelos Prontos)
+// ══════════════════════════════════════════════════════════════════════════
+
+const SKILL_CATEGORIES = [
+  "produtividade", "rh", "financeiro", "juridico", "comercial",
+  "marketing", "backoffice", "planejamento", "ti_ia", "outro",
+];
+
+// Quem pode ver uma skill que nao esta publicada: quem criou, ou admin.
+const canViewSkill = (skill, user) =>
+  skill.visibility === "publicada" || skill.created_by === user.id || user.role === "admin";
+
+const toSkillJson = (row) => ({
+  ...row,
+  tags: (() => {
+    try {
+      return JSON.parse(row.tags || "[]");
+    } catch {
+      return [];
+    }
+  })(),
+});
+
+router.get(
+  "/skills",
+  requireAuth,
+  h(async (req, res) => {
+    const { search, category, mine } = req.query;
+    const conditions = [];
+    const params = [];
+
+    if (mine === "true") {
+      conditions.push("created_by = ?");
+      params.push(req.user.id);
+    } else if (req.user.role !== "admin") {
+      // Visao geral: so publicadas + as minhas privadas/em revisao/rejeitadas.
+      conditions.push("(visibility = 'publicada' OR created_by = ?)");
+      params.push(req.user.id);
+    }
+
+    if (search) {
+      conditions.push("(name LIKE ? OR description LIKE ?)");
+      const term = `%${search}%`;
+      params.push(term, term);
+    }
+    if (category && SKILL_CATEGORIES.includes(category)) {
+      conditions.push("category = ?");
+      params.push(category);
+    }
+
+    const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+    const rows = await db.query(
+      `SELECT sk.*, u.full_name AS author_name, sf.original_name AS file_name, sf.size_bytes AS file_size
+       FROM skills sk
+       LEFT JOIN users u ON u.id = sk.created_by
+       LEFT JOIN stored_files sf ON sf.id = sk.file_id
+       ${where}
+       ORDER BY FIELD(sk.visibility, 'publicada', 'em_revisao', 'privada', 'rejeitada'), sk.updated_at DESC`,
+      params,
+    );
+    res.json({ skills: rows.map(toSkillJson) });
+  }),
+);
+
+router.get(
+  "/skills/:id",
+  requireAuth,
+  h(async (req, res) => {
+    const row = await db.queryOne(
+      `SELECT sk.*, u.full_name AS author_name, sf.original_name AS file_name, sf.size_bytes AS file_size
+       FROM skills sk
+       LEFT JOIN users u ON u.id = sk.created_by
+       LEFT JOIN stored_files sf ON sf.id = sk.file_id
+       WHERE sk.id = ?`,
+      [req.params.id],
+    );
+    if (!row) return res.status(404).json({ error: { message: "Skill nao encontrada." } });
+    if (!canViewSkill(row, req.user)) {
+      return res.status(403).json({ error: { message: "Skill nao disponivel." } });
+    }
+    res.json({ skill: toSkillJson(row) });
+  }),
+);
+
+router.post(
+  "/skills",
+  requireAuth,
+  upload.single("file"),
+  h(async (req, res) => {
+    if (!req.file) return res.status(400).json({ error: { message: "Envie um arquivo .zip." } });
+
+    const { name, description, category, compatibility, version } = req.body || {};
+    let tags = [];
+    try {
+      tags = JSON.parse(req.body?.tags || "[]");
+      if (!Array.isArray(tags)) tags = [];
+    } catch {
+      tags = [];
+    }
+
+    if (!name?.trim() || !description?.trim()) {
+      return res.status(400).json({ error: { message: "Nome e descricao sao obrigatorios." } });
+    }
+    if (category && !SKILL_CATEGORIES.includes(category)) {
+      return res.status(400).json({ error: { message: "Categoria invalida." } });
+    }
+
+    // Validacao de verdade do tipo do arquivo: o mime type que o navegador
+    // manda nao prova nada — confere a assinatura "PK" (zip local file header
+    // ou end-of-central-directory) nos primeiros bytes.
+    const signature = req.file.buffer.subarray(0, 4).toString("latin1");
+    const isZip = signature.startsWith("PK");
+    if (!isZip || !req.file.originalname.toLowerCase().endsWith(".zip")) {
+      return res.status(400).json({ error: { message: "O arquivo precisa ser um .zip valido." } });
+    }
+
+    let saved;
+    try {
+      saved = await saveFile({
+        bucket: "skills",
+        buffer: req.file.buffer,
+        originalName: req.file.originalname,
+        mimeType: "application/zip",
+        ownerId: req.user.id,
+      });
+    } catch (err) {
+      if (err.code === "INVALID_MIME_TYPE") {
+        return res.status(400).json({ error: { message: "Tipo de arquivo nao permitido." } });
+      }
+      throw err;
+    }
+
+    const id = uuid();
+    await db.exec(
+      `INSERT INTO skills (id, name, description, category, tags, compatibility, version, file_id, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id,
+        name.trim(),
+        description.trim(),
+        category || null,
+        JSON.stringify(tags),
+        compatibility?.trim() || "Claude",
+        version?.trim() || "1.0.0",
+        saved.id,
+        req.user.id,
+      ],
+    );
+
+    await logAudit(req.user.id, "created", "skill", id, { name });
+
+    const row = await db.queryOne(`SELECT * FROM skills WHERE id = ?`, [id]);
+    res.status(201).json({ skill: toSkillJson(row) });
+  }),
+);
+
+router.patch(
+  "/skills/:id",
+  requireAuth,
+  h(async (req, res) => {
+    const existing = await db.queryOne(`SELECT * FROM skills WHERE id = ?`, [req.params.id]);
+    if (!existing) return res.status(404).json({ error: { message: "Skill nao encontrada." } });
+
+    const isOwner = existing.created_by === req.user.id;
+    if (!isOwner && req.user.role !== "admin") {
+      return res.status(403).json({ error: { message: "Sem permissao." } });
+    }
+    // Dono so edita metadados enquanto nao esta publicada/em revisao (evita
+    // trocar o conteudo depois que um admin ja aprovou ou esta analisando).
+    if (isOwner && req.user.role !== "admin" && !["privada", "rejeitada"].includes(existing.visibility)) {
+      return res.status(409).json({ error: { message: "So da pra editar skills privadas ou rejeitadas." } });
+    }
+
+    const { name, description, category, tags, compatibility, version } = req.body || {};
+    if (category && !SKILL_CATEGORIES.includes(category)) {
+      return res.status(400).json({ error: { message: "Categoria invalida." } });
+    }
+
+    const set = [];
+    const params = [];
+    const push = (column, value) => {
+      if (value === undefined) return;
+      set.push(`${column} = ?`);
+      params.push(value);
+    };
+
+    push("name", name?.trim());
+    push("description", description?.trim());
+    push("category", category || null);
+    if (tags !== undefined) push("tags", JSON.stringify(Array.isArray(tags) ? tags : []));
+    push("compatibility", compatibility?.trim());
+    push("version", version?.trim());
+
+    if (set.length) {
+      params.push(req.params.id);
+      await db.exec(`UPDATE skills SET ${set.join(", ")} WHERE id = ?`, params);
+      await logAudit(req.user.id, "updated", "skill", req.params.id, req.body);
+    }
+
+    const row = await db.queryOne(`SELECT * FROM skills WHERE id = ?`, [req.params.id]);
+    res.json({ skill: toSkillJson(row) });
+  }),
+);
+
+router.patch(
+  "/skills/:id/submit",
+  requireAuth,
+  h(async (req, res) => {
+    const existing = await db.queryOne(`SELECT id, created_by, visibility FROM skills WHERE id = ?`, [req.params.id]);
+    if (!existing) return res.status(404).json({ error: { message: "Skill nao encontrada." } });
+    if (existing.created_by !== req.user.id) return res.status(403).json({ error: { message: "Sem permissao." } });
+    if (!["privada", "rejeitada"].includes(existing.visibility)) {
+      return res.status(409).json({ error: { message: "Essa skill ja esta em revisao ou publicada." } });
+    }
+
+    await db.exec(`UPDATE skills SET visibility = 'em_revisao', moderation_note = NULL WHERE id = ?`, [req.params.id]);
+    await logAudit(req.user.id, "submitted", "skill", req.params.id, {});
+    res.json({ ok: true });
+  }),
+);
+
+router.patch(
+  "/skills/:id/moderate",
+  requireAuth,
+  requireRole("admin"),
+  h(async (req, res) => {
+    const { visibility, moderationNote } = req.body || {};
+    if (!["publicada", "rejeitada"].includes(visibility)) {
+      return res.status(400).json({ error: { message: "Decisao invalida." } });
+    }
+    const existing = await db.queryOne(`SELECT id FROM skills WHERE id = ?`, [req.params.id]);
+    if (!existing) return res.status(404).json({ error: { message: "Skill nao encontrada." } });
+
+    await db.exec(`UPDATE skills SET visibility = ?, moderation_note = ? WHERE id = ?`, [
+      visibility,
+      moderationNote?.trim() || null,
+      req.params.id,
+    ]);
+    await logAudit(req.user.id, "moderated", "skill", req.params.id, { visibility });
+    res.json({ ok: true });
+  }),
+);
+
+router.delete(
+  "/skills/:id",
+  requireAuth,
+  h(async (req, res) => {
+    const existing = await db.queryOne(`SELECT id, created_by, file_id FROM skills WHERE id = ?`, [req.params.id]);
+    if (!existing) return res.status(404).json({ error: { message: "Skill nao encontrada." } });
+    if (existing.created_by !== req.user.id && req.user.role !== "admin") {
+      return res.status(403).json({ error: { message: "Sem permissao." } });
+    }
+
+    await db.exec(`DELETE FROM skills WHERE id = ?`, [req.params.id]);
+    await deleteFile(existing.file_id).catch(() => {});
+    await logAudit(req.user.id, "deleted", "skill", req.params.id, {});
+    res.json({ ok: true });
+  }),
+);
+
+router.get(
+  "/skills/:id/download",
+  requireAuth,
+  h(async (req, res) => {
+    const row = await db.queryOne(`SELECT * FROM skills WHERE id = ?`, [req.params.id]);
+    if (!row) return res.status(404).json({ error: { message: "Skill nao encontrada." } });
+    if (!canViewSkill(row, req.user)) {
+      return res.status(403).json({ error: { message: "Skill nao disponivel." } });
+    }
+
+    const file = await getFileRow(row.file_id);
+    if (!file) return res.status(404).json({ error: { message: "Arquivo nao encontrado." } });
+    const buffer = await readFileBuffer(file.bucket, file.storage_key).catch(() => null);
+    if (!buffer) return res.status(404).json({ error: { message: "Arquivo nao encontrado no disco." } });
+
+    await db.exec(`UPDATE skills SET download_count = download_count + 1 WHERE id = ?`, [row.id]).catch(() => {});
+
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Content-Disposition", `attachment; filename="${(file.original_name || "skill.zip").replace(/"/g, "")}"`);
+    res.send(buffer);
+  }),
+);
+
 export default router;
