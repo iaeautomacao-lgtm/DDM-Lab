@@ -41,6 +41,7 @@ export type SolutionInput = {
   sector: string;
   type?: string;
   status?: string;
+  restricted?: boolean;
   url?: string;
   ownerName?: string;
   ownerEmail?: string;

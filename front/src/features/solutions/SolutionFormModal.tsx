@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Loader2, X } from 'lucide-react';
+import { Loader2, Lock, X } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Field } from './Field';
 import { createSolution, updateSolution } from './api';
@@ -23,6 +23,7 @@ export const SolutionFormModal = ({ solution, defaultSector, onClose, onSaved }:
   const [url, setUrl] = useState(solution?.url || '');
   const [ownerName, setOwnerName] = useState(solution?.owner_name || '');
   const [ownerEmail, setOwnerEmail] = useState(solution?.owner_email || '');
+  const [restricted, setRestricted] = useState(solution?.restricted ?? false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -46,6 +47,7 @@ export const SolutionFormModal = ({ solution, defaultSector, onClose, onSaved }:
         url: url.trim() || undefined,
         ownerName: ownerName.trim() || undefined,
         ownerEmail: ownerEmail.trim() || undefined,
+        restricted,
       };
       if (solution) {
         await updateSolution(solution.id, payload);
@@ -182,6 +184,25 @@ export const SolutionFormModal = ({ solution, defaultSector, onClose, onSaved }:
               />
             </Field>
           </div>
+
+          <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-surface-hover/40 p-3">
+            <input
+              type="checkbox"
+              checked={restricted}
+              onChange={(e) => setRestricted(e.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
+            />
+            <span className="text-sm">
+              <span className="flex items-center gap-1.5 font-medium text-foreground">
+                <Lock size={13} />
+                Solução restrita
+              </span>
+              <span className="mt-0.5 block text-xs text-text-secondary">
+                Contém dados sensíveis (login/senha, informações financeiras etc.). Só diretores, admins e quem criou
+                conseguem ver esta solução no painel.
+              </span>
+            </span>
+          </label>
 
           {error && <p className="text-xs font-medium text-red-400">{error}</p>}
 

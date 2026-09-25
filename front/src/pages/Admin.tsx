@@ -21,6 +21,7 @@ import {
   type KBDoc,
 } from '../lib/knowledgeBase';
 import { useAuth } from '../lib/AuthContext';
+import { fetchUsers, updateUserRole, ROLE_OPTIONS, type ManagedUser, type UserRole } from '../lib/userAdmin';
 import {
   Users,
   MessageSquare,
@@ -63,7 +64,7 @@ const DEPARTMENTS = ['RH', 'Jurídico', 'Financeiro', 'Backoffice', 'Planejament
 
 const DEFAULT_SYSTEM_PROMPT = 'Voce e o Acordito, assistente oficial do DDM Lab, a plataforma interna de inteligencia artificial do Grupo DDM. O DDM Lab centraliza modelos, prompts, automacoes, orientacoes e apoio operacional para os colaboradores. Sua funcao e agir como um parceiro de produtividade: explicar a plataforma quando necessario, responder com clareza, ajudar o usuario a estruturar melhor o que precisa e transformar pedidos vagos em demandas objetivas. Use tom executivo, humano, cordial e consultivo. Prefira respostas fluidas, claras e aplicaveis ao contexto corporativo. Evite jargao tecnico desnecessario e listas numeradas excessivas.';
 
-type Tab = 'metricas' | 'agente' | 'sugestoes' | 'documentos';
+type Tab = 'metricas' | 'agente' | 'sugestoes' | 'documentos' | 'usuarios';
 
 // ── Aba de métricas ──────────────────────────────────────────────────────────
 const MetricsTab: React.FC = () => {
@@ -734,6 +735,135 @@ const DocumentosTab: React.FC = () => {
   );
 };
 
+// ── Aba de usuários (gestão de níveis de acesso) ─────────────────────────────
+const ROLE_BADGE_CLASSES: Record<UserRole, string> = {
+  admin: 'bg-primary/10 text-primary',
+  diretor: 'bg-purple-500/10 text-purple-400',
+  gestor: 'bg-blue-500/10 text-blue-400',
+  rh: 'bg-pink-500/10 text-pink-400',
+  user: 'bg-surface-hover text-text-secondary',
+};
+
+const UsersTab: React.FC = () => {
+  const { profile } = useAuth();
+  const [users, setUsers] = useState<ManagedUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [error, setError] = useState('');
+
+  const load = () => {
+    setLoading(true);
+    fetchUsers()
+      .then(setUsers)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Não foi possível carregar os usuários.'))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(load, []);
+
+  const handleRoleChange = async (user: ManagedUser, role: UserRole) => {
+    setSavingId(user.id);
+    setError('');
+    try {
+      await updateUserRole(user.id, role);
+      setUsers((prev) => prev.map((u) => (u.id === user.id ? { ...u, role } : u)));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível salvar o nível de acesso.');
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  const filtered = users.filter((u) => {
+    const term = search.toLowerCase().trim();
+    if (!term) return true;
+    return (
+      u.email.toLowerCase().includes(term) ||
+      (u.full_name || '').toLowerCase().includes(term) ||
+      (u.department || '').toLowerCase().includes(term)
+    );
+  });
+
+  return (
+    <div className="space-y-4">
+      <Card className="p-4">
+        <p className="text-sm text-text-secondary">
+          Defina o nível de acesso de cada colaborador. <strong className="text-foreground">Diretor</strong> e{' '}
+          <strong className="text-foreground">Admin</strong> são os únicos que enxergam soluções marcadas como{' '}
+          <strong className="text-foreground">restritas</strong> no painel de Soluções.
+        </p>
+      </Card>
+
+      <input
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Buscar por nome, e-mail ou setor..."
+        className="h-11 w-full max-w-sm rounded-xl border border-border bg-surface px-4 text-sm outline-none placeholder:text-text-secondary/50 focus:border-primary/40"
+      />
+
+      {error && <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-400">{error}</div>}
+
+      {loading ? (
+        <div className="flex justify-center py-16">
+          <span className="h-7 w-7 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
+        </div>
+      ) : (
+        <Card className="overflow-hidden p-0">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border text-left text-[11px] uppercase tracking-wider text-text-secondary/70">
+                <th className="px-4 py-3 font-medium">Nome</th>
+                <th className="px-4 py-3 font-medium">E-mail</th>
+                <th className="px-4 py-3 font-medium">Setor</th>
+                <th className="px-4 py-3 font-medium">Nível de acesso</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((u) => (
+                <tr key={u.id} className="border-b border-border last:border-0">
+                  <td className="px-4 py-3 font-medium text-foreground">{u.full_name || u.preferred_name || '—'}</td>
+                  <td className="px-4 py-3 text-text-secondary">
+                    {u.email}
+                    {u.email === profile?.email && <span className="ml-2 text-[10px] text-primary">(você)</span>}
+                  </td>
+                  <td className="px-4 py-3 text-text-secondary">{u.department || '—'}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={u.role}
+                        disabled={savingId === u.id}
+                        onChange={(e) => handleRoleChange(u, e.target.value as UserRole)}
+                        className={`rounded-lg border-none px-2.5 py-1.5 text-xs font-semibold outline-none disabled:opacity-50 ${ROLE_BADGE_CLASSES[u.role]}`}
+                      >
+                        {ROLE_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                      {savingId === u.id && (
+                        <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {filtered.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-4 py-10 text-center text-text-secondary">
+                    Nenhum usuário encontrado.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </Card>
+      )}
+    </div>
+  );
+};
+
 // ── Página principal ─────────────────────────────────────────────────────────
 export function Admin() {
   const [activeTab, setActiveTab] = useState<Tab>('metricas');
@@ -811,12 +941,24 @@ export function Admin() {
           <BookOpen size={15} />
           Documentos
         </button>
+        <button
+          onClick={() => setActiveTab('usuarios')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+            activeTab === 'usuarios'
+              ? 'bg-primary text-white shadow'
+              : 'text-text-secondary hover:text-white'
+          }`}
+        >
+          <Users size={15} />
+          Usuários
+        </button>
       </div>
 
       {activeTab === 'metricas' && <MetricsTab />}
       {activeTab === 'agente' && <AgentTab />}
       {activeTab === 'sugestoes' && <SugestoesTab />}
       {activeTab === 'documentos' && <DocumentosTab />}
+      {activeTab === 'usuarios' && <UsersTab />}
     </div>
   );
 }

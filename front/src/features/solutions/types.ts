@@ -23,6 +23,8 @@ export interface Solution {
   sector: SolutionSector;
   type: SolutionType;
   status: SolutionStatus;
+  /** Dados sensiveis (login/senha, financeiro etc.) — so diretor/admin ou quem criou ve. */
+  restricted: boolean;
   url: string | null;
   owner_name: string | null;
   owner_email: string | null;

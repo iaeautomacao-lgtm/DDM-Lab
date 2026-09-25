@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS users (
   full_name         VARCHAR(255) NOT NULL DEFAULT '',
   preferred_name    VARCHAR(120) NOT NULL DEFAULT '',
   avatar_url        VARCHAR(512) NULL,
-  role              ENUM('user','rh','admin') NOT NULL DEFAULT 'user',
+  role              ENUM('user','gestor','diretor','rh','admin') NOT NULL DEFAULT 'user',
   department        VARCHAR(120) NOT NULL DEFAULT 'Geral',
   unit              VARCHAR(120) NOT NULL DEFAULT '',
   job_title         VARCHAR(160) NOT NULL DEFAULT 'Colaborador',
@@ -325,6 +325,9 @@ CREATE TABLE IF NOT EXISTS solutions (
   sector         ENUM('financeiro','planejamento','rh','juridico','backoffice','comercial','marketing','ti_ia','operacao','qualidade','outros') NOT NULL,
   type           ENUM('dashboard','sistema','automacao','ia','skill','portal','outro') NOT NULL DEFAULT 'dashboard',
   status         ENUM('planejado','em_desenvolvimento','homologacao','publicado','pausado','arquivado') NOT NULL DEFAULT 'planejado',
+  -- Solucao com dados sensiveis (login/senha, financeiro, juridico etc.):
+  -- so diretor/admin (ou quem criou) consegue ver.
+  restricted     TINYINT(1)   NOT NULL DEFAULT 0,
   url            VARCHAR(1000) NULL,
   owner_name     VARCHAR(180) NULL,
   owner_email    VARCHAR(255) NULL,

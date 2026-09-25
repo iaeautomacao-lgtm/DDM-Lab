@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { ArrowUpRight, Bot, Gauge, Globe, LayoutDashboard, Settings2 } from 'lucide-react';
+import { ArrowUpRight, Bot, Gauge, Globe, LayoutDashboard, Lock, Settings2 } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
 import { SECTOR_OPTIONS, type Solution, type SolutionType } from './types';
 
@@ -53,9 +53,19 @@ export const SolutionCard = ({ solution, onSelect }: Props) => {
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
             <Icon size={20} />
           </div>
-          <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${STATUS_CLASSES[solution.status]}`}>
-            {STATUS_LABEL[solution.status]}
-          </span>
+          <div className="flex items-center gap-1.5">
+            {solution.restricted && (
+              <span
+                className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-500/10 text-amber-600"
+                title="Solução restrita — visível só para diretores, admins e quem criou"
+              >
+                <Lock size={12} />
+              </span>
+            )}
+            <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${STATUS_CLASSES[solution.status]}`}>
+              {STATUS_LABEL[solution.status]}
+            </span>
+          </div>
         </div>
 
         <div className="mt-5">

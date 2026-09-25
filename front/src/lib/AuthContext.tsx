@@ -17,7 +17,7 @@ interface UserProfile {
   displayName: string;
   preferredName: string;
   avatarUrl: string;
-  role: 'admin' | 'user' | 'rh';
+  role: 'admin' | 'user' | 'rh' | 'gestor' | 'diretor';
   department: string;
   unit: string;
   jobTitle: string;
@@ -40,6 +40,8 @@ interface AuthContextType {
   loading: boolean;
   isAdmin: boolean;
   isRH: boolean;
+  /** Diretor ou admin — quem pode ver soluções marcadas como restritas (dados sensíveis). */
+  canViewRestricted: boolean;
   login: (email: string, options: LoginOptions) => Promise<void>;
   rhLogin: (email: string, password: string) => Promise<void>;
   requestPasswordReset: (email: string) => Promise<void>;
@@ -202,6 +204,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const isAdmin = profile?.role === 'admin';
   const isRH = profile?.role === 'rh';
+  const canViewRestricted = isAdmin || profile?.role === 'diretor';
 
   return (
     <AuthContext.Provider
@@ -211,6 +214,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loading,
         isAdmin,
         isRH,
+        canViewRestricted,
         login,
         rhLogin,
         requestPasswordReset,

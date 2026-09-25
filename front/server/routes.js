@@ -47,6 +47,10 @@ const emailDomain = (email) => email.slice(email.lastIndexOf("@") + 1);
 const isAllowedEmail = (email) => ALLOWED_EMAIL_DOMAINS.includes(emailDomain(email)) || RH_EMAILS.includes(email);
 const roleForEmail = (email) => (ADMIN_EMAILS.includes(email) ? "admin" : RH_EMAILS.includes(email) ? "rh" : "user");
 
+const USER_ROLES = ["user", "gestor", "diretor", "rh", "admin"];
+// Quem consegue ver solucao marcada como restrita (dados sensiveis) mesmo sem ser o autor.
+const canViewRestricted = (role) => role === "diretor" || role === "admin";
+
 const DEFAULT_AVATAR_URL = `/avatars/${encodeURIComponent("Acordito_celular.png")}`;
 
 const toProfile = (row) => ({
@@ -1071,6 +1075,41 @@ router.delete(
 );
 
 // ══════════════════════════════════════════════════════════════════════════
+// Gestao de usuarios (admin) — quem e usuario comum, gestor, diretor ou admin
+// ══════════════════════════════════════════════════════════════════════════
+
+router.get(
+  "/users",
+  requireAuth,
+  requireRole("admin"),
+  h(async (req, res) => {
+    const rows = await db.query(
+      `SELECT id, email, full_name, preferred_name, department, role, created_at
+       FROM users ORDER BY full_name`,
+    );
+    res.json({ users: rows });
+  }),
+);
+
+router.patch(
+  "/users/:id/role",
+  requireAuth,
+  requireRole("admin"),
+  h(async (req, res) => {
+    const { role } = req.body || {};
+    if (!USER_ROLES.includes(role)) {
+      return res.status(400).json({ error: { message: "Nivel de acesso invalido." } });
+    }
+    const existing = await db.queryOne(`SELECT id, email FROM users WHERE id = ?`, [req.params.id]);
+    if (!existing) return res.status(404).json({ error: { message: "Usuario nao encontrado." } });
+
+    await db.exec(`UPDATE users SET role = ? WHERE id = ?`, [role, req.params.id]);
+    await logAudit(req.user.id, "role_changed", "user", req.params.id, { email: existing.email, role });
+    res.json({ ok: true });
+  }),
+);
+
+// ══════════════════════════════════════════════════════════════════════════
 // App config + base de conhecimento OpenAI (vector store)
 // ══════════════════════════════════════════════════════════════════════════
 
@@ -1379,6 +1418,13 @@ router.get(
       params.push(type);
     }
 
+    // Solucao restrita (dados sensiveis): so aparece pra quem criou ou pra
+    // diretor/admin. Filtra no SQL — nunca chega no front de quem nao pode ver.
+    if (!canViewRestricted(req.user.role)) {
+      conditions.push("(restricted = 0 OR created_by = ?)");
+      params.push(req.user.id);
+    }
+
     const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
     const rows = await db.query(
       `SELECT * FROM solutions ${where}
@@ -1413,6 +1459,9 @@ router.get(
   h(async (req, res) => {
     const row = await db.queryOne(`SELECT * FROM solutions WHERE id = ?`, [req.params.id]);
     if (!row) return res.status(404).json({ error: { message: "Solucao nao encontrada." } });
+    if (row.restricted && row.created_by !== req.user.id && !canViewRestricted(req.user.role)) {
+      return res.status(403).json({ error: { message: "Solucao restrita. Fale com um diretor para ter acesso." } });
+    }
     res.json({ solution: row });
   }),
 );
@@ -1421,7 +1470,8 @@ router.post(
   "/solutions",
   requireAuth,
   h(async (req, res) => {
-    const { title, summary, problemSolved, sector, type, status, url, ownerName, ownerEmail, technologies } = req.body || {};
+    const { title, summary, problemSolved, sector, type, status, url, ownerName, ownerEmail, technologies, restricted } =
+      req.body || {};
 
     if (!title?.trim() || !summary?.trim() || !SOLUTION_SECTORS.includes(sector)) {
       return res.status(400).json({ error: { message: "Titulo, resumo e setor sao obrigatorios." } });
@@ -1435,8 +1485,8 @@ router.post(
 
     const id = uuid();
     await db.exec(
-      `INSERT INTO solutions (id, title, summary, problem_solved, sector, type, status, url, owner_name, owner_email, technologies, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO solutions (id, title, summary, problem_solved, sector, type, status, restricted, url, owner_name, owner_email, technologies, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         title.trim(),
@@ -1445,6 +1495,7 @@ router.post(
         sector,
         type || "dashboard",
         status || "planejado",
+        restricted ? 1 : 0,
         url || null,
         ownerName || null,
         ownerEmail || null,
@@ -1453,7 +1504,7 @@ router.post(
       ],
     );
 
-    await logAudit(req.user.id, "created", "solution", id, { title, sector });
+    await logAudit(req.user.id, "created", "solution", id, { title, sector, restricted: Boolean(restricted) });
 
     const row = await db.queryOne(`SELECT * FROM solutions WHERE id = ?`, [id]);
     res.status(201).json({ solution: row });
@@ -1464,10 +1515,14 @@ router.put(
   "/solutions/:id",
   requireAuth,
   h(async (req, res) => {
-    const existing = await db.queryOne(`SELECT id FROM solutions WHERE id = ?`, [req.params.id]);
+    const existing = await db.queryOne(`SELECT id, created_by, restricted FROM solutions WHERE id = ?`, [req.params.id]);
     if (!existing) return res.status(404).json({ error: { message: "Solucao nao encontrada." } });
+    if (existing.restricted && existing.created_by !== req.user.id && !canViewRestricted(req.user.role)) {
+      return res.status(403).json({ error: { message: "Solucao restrita. Fale com um diretor para ter acesso." } });
+    }
 
-    const { title, summary, problemSolved, sector, type, status, url, ownerName, ownerEmail, technologies } = req.body || {};
+    const { title, summary, problemSolved, sector, type, status, url, ownerName, ownerEmail, technologies, restricted } =
+      req.body || {};
 
     if (sector && !SOLUTION_SECTORS.includes(sector)) {
       return res.status(400).json({ error: { message: "Setor invalido." } });
@@ -1493,6 +1548,7 @@ router.put(
     push("sector", sector);
     push("type", type);
     push("status", status);
+    if (restricted !== undefined) push("restricted", restricted ? 1 : 0);
     push("url", url || null);
     push("owner_name", ownerName || null);
     push("owner_email", ownerEmail || null);
