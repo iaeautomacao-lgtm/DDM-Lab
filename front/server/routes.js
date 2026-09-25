@@ -1109,6 +1109,26 @@ router.patch(
   }),
 );
 
+router.delete(
+  "/users/:id",
+  requireAuth,
+  requireRole("admin"),
+  h(async (req, res) => {
+    if (req.params.id === req.user.id) {
+      return res.status(400).json({ error: { message: "Voce nao pode excluir a propria conta." } });
+    }
+    const existing = await db.queryOne(`SELECT id, email FROM users WHERE id = ?`, [req.params.id]);
+    if (!existing) return res.status(404).json({ error: { message: "Usuario nao encontrado." } });
+
+    // FKs em cascata/SET NULL cuidam de conversas, mensagens, feed, imagens do
+    // Creator etc. (ver backend/sql/001_schema.sql) — nao precisa apagar linha
+    // por linha aqui.
+    await db.exec(`DELETE FROM users WHERE id = ?`, [req.params.id]);
+    await logAudit(req.user.id, "deleted", "user", req.params.id, { email: existing.email });
+    res.json({ ok: true });
+  }),
+);
+
 // ══════════════════════════════════════════════════════════════════════════
 // App config + base de conhecimento OpenAI (vector store)
 // ══════════════════════════════════════════════════════════════════════════

@@ -21,7 +21,7 @@ import {
   type KBDoc,
 } from '../lib/knowledgeBase';
 import { useAuth } from '../lib/AuthContext';
-import { fetchUsers, updateUserRole, ROLE_OPTIONS, type ManagedUser, type UserRole } from '../lib/userAdmin';
+import { fetchUsers, updateUserRole, deleteUser, ROLE_OPTIONS, type ManagedUser, type UserRole } from '../lib/userAdmin';
 import {
   Users,
   MessageSquare,
@@ -750,6 +750,8 @@ const UsersTab: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<ManagedUser | null>(null);
   const [error, setError] = useState('');
 
   const load = () => {
@@ -772,6 +774,21 @@ const UsersTab: React.FC = () => {
       setError(err instanceof Error ? err.message : 'Não foi possível salvar o nível de acesso.');
     } finally {
       setSavingId(null);
+    }
+  };
+
+  const handleDeleteConfirmed = async () => {
+    if (!confirmDelete) return;
+    setDeletingId(confirmDelete.id);
+    setError('');
+    try {
+      await deleteUser(confirmDelete.id);
+      setUsers((prev) => prev.filter((u) => u.id !== confirmDelete.id));
+      setConfirmDelete(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível excluir o usuário.');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -817,41 +834,55 @@ const UsersTab: React.FC = () => {
                 <th className="px-4 py-3 font-medium">E-mail</th>
                 <th className="px-4 py-3 font-medium">Setor</th>
                 <th className="px-4 py-3 font-medium">Nível de acesso</th>
+                <th className="px-4 py-3 font-medium" />
               </tr>
             </thead>
             <tbody>
-              {filtered.map((u) => (
-                <tr key={u.id} className="border-b border-border last:border-0">
-                  <td className="px-4 py-3 font-medium text-foreground">{u.full_name || u.preferred_name || '—'}</td>
-                  <td className="px-4 py-3 text-text-secondary">
-                    {u.email}
-                    {u.email === profile?.email && <span className="ml-2 text-[10px] text-primary">(você)</span>}
-                  </td>
-                  <td className="px-4 py-3 text-text-secondary">{u.department || '—'}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <select
-                        value={u.role}
-                        disabled={savingId === u.id}
-                        onChange={(e) => handleRoleChange(u, e.target.value as UserRole)}
-                        className={`rounded-lg border-none px-2.5 py-1.5 text-xs font-semibold outline-none disabled:opacity-50 ${ROLE_BADGE_CLASSES[u.role]}`}
+              {filtered.map((u) => {
+                const isSelf = u.email === profile?.email;
+                return (
+                  <tr key={u.id} className="border-b border-border last:border-0">
+                    <td className="px-4 py-3 font-medium text-foreground">{u.full_name || u.preferred_name || '—'}</td>
+                    <td className="px-4 py-3 text-text-secondary">
+                      {u.email}
+                      {isSelf && <span className="ml-2 text-[10px] text-primary">(você)</span>}
+                    </td>
+                    <td className="px-4 py-3 text-text-secondary">{u.department || '—'}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={u.role}
+                          disabled={savingId === u.id}
+                          onChange={(e) => handleRoleChange(u, e.target.value as UserRole)}
+                          className={`rounded-lg border-none px-2.5 py-1.5 text-xs font-semibold outline-none disabled:opacity-50 ${ROLE_BADGE_CLASSES[u.role]}`}
+                        >
+                          {ROLE_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                        {savingId === u.id && (
+                          <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        onClick={() => setConfirmDelete(u)}
+                        disabled={isSelf}
+                        title={isSelf ? 'Você não pode excluir a própria conta' : 'Excluir usuário'}
+                        className="rounded-lg p-1.5 text-text-secondary transition-colors hover:bg-red-500/10 hover:text-red-400 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-text-secondary"
                       >
-                        {ROLE_OPTIONS.map((opt) => (
-                          <option key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </option>
-                        ))}
-                      </select>
-                      {savingId === u.id && (
-                        <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                        <Trash2 size={15} />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-10 text-center text-text-secondary">
+                  <td colSpan={5} className="px-4 py-10 text-center text-text-secondary">
                     Nenhum usuário encontrado.
                   </td>
                 </tr>
@@ -859,6 +890,41 @@ const UsersTab: React.FC = () => {
             </tbody>
           </table>
         </Card>
+      )}
+
+      {confirmDelete && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          onClick={() => (deletingId ? null : setConfirmDelete(null))}
+        >
+          <Card className="w-full max-w-sm space-y-4 p-6" onClick={(e) => e.stopPropagation()}>
+            <div>
+              <h3 className="text-base font-bold text-foreground">Excluir usuário?</h3>
+              <p className="mt-2 text-sm text-text-secondary">
+                <strong className="text-foreground">{confirmDelete.full_name || confirmDelete.email}</strong> perde o acesso
+                imediatamente. Conversas, mensagens e imagens dessa pessoa são apagadas junto; soluções e projetos que ela
+                criou continuam, só sem autor. Essa ação não pode ser desfeita.
+              </p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setConfirmDelete(null)}
+                disabled={Boolean(deletingId)}
+                className="rounded-xl border border-border px-4 py-2 text-sm font-medium text-text-secondary hover:text-foreground disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDeleteConfirmed}
+                disabled={Boolean(deletingId)}
+                className="flex items-center gap-2 rounded-xl bg-red-500 px-4 py-2 text-sm font-semibold text-white hover:bg-red-600 disabled:opacity-50"
+              >
+                {deletingId ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" /> : null}
+                Excluir
+              </button>
+            </div>
+          </Card>
+        </div>
       )}
     </div>
   );

@@ -28,3 +28,7 @@ export const fetchUsers = async (): Promise<ManagedUser[]> => {
 export const updateUserRole = async (id: string, role: UserRole): Promise<void> => {
   await api.patch(`/users/${id}/role`, { role });
 };
+
+export const deleteUser = async (id: string): Promise<void> => {
+  await api.delete(`/users/${id}`);
+};
