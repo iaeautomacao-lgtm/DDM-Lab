@@ -1334,7 +1334,7 @@ router.get(
 // Soluções — catálogo corporativo de dashboards/sistemas/automações
 // ══════════════════════════════════════════════════════════════════════════
 
-const SOLUTION_SECTORS = ["financeiro", "planejamento", "rh", "juridico", "backoffice", "comercial", "marketing", "ti_ia", "operacao_qualidade", "outros"];
+const SOLUTION_SECTORS = ["financeiro", "planejamento", "rh", "juridico", "backoffice", "comercial", "marketing", "ti_ia", "operacao", "qualidade", "outros"];
 const SOLUTION_TYPES = ["dashboard", "sistema", "automacao", "ia", "skill", "portal", "outro"];
 const SOLUTION_STATUSES = ["planejado", "em_desenvolvimento", "homologacao", "publicado", "pausado", "arquivado"];
 const PROJECT_STATUSES = ["ideia", "planejado", "em_andamento", "bloqueado", "concluido", "cancelado"];

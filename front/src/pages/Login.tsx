@@ -22,6 +22,7 @@ const SECTORS = [
   'Jurídico',
   'Financeiro',
   'Backoffice / Operações',
+  'Qualidade',
   'RH',
   'TI',
   'Diretoria',

@@ -7,7 +7,8 @@ export type SolutionSector =
   | 'comercial'
   | 'marketing'
   | 'ti_ia'
-  | 'operacao_qualidade'
+  | 'operacao'
+  | 'qualidade'
   | 'outros';
 
 export type SolutionType = 'dashboard' | 'sistema' | 'automacao' | 'ia' | 'skill' | 'portal' | 'outro';
@@ -62,7 +63,8 @@ export const SECTOR_OPTIONS: Array<{ value: SolutionSector; label: string }> = [
   { value: 'comercial', label: 'Comercial' },
   { value: 'marketing', label: 'Marketing' },
   { value: 'ti_ia', label: 'TI / IA' },
-  { value: 'operacao_qualidade', label: 'Operação e Qualidade' },
+  { value: 'operacao', label: 'Operação' },
+  { value: 'qualidade', label: 'Qualidade' },
   { value: 'outros', label: 'Outros' },
 ];
 
