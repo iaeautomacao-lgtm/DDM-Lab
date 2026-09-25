@@ -57,7 +57,7 @@ export const ProjectFormModal = ({ project, defaultSector, sectorSolutions, onCl
       }
       onSaved();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Nao foi possivel salvar o projeto.');
+      setError(err instanceof Error ? err.message : 'Não foi possível salvar o projeto.');
     } finally {
       setSaving(false);
     }
@@ -102,7 +102,7 @@ export const ProjectFormModal = ({ project, defaultSector, sectorSolutions, onCl
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
               className="w-full resize-none rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary/40"
-              placeholder="O que esta sendo construido"
+              placeholder="O que está sendo construído"
             />
           </Field>
 

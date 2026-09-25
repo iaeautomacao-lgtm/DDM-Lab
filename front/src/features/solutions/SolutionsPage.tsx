@@ -40,7 +40,7 @@ export const SolutionsPage = () => {
       setProjects(projectsData);
       setStats(statsData);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Nao foi possivel carregar as solucoes.');
+      setError(err instanceof Error ? err.message : 'Não foi possível carregar as soluções.');
     } finally {
       setLoading(false);
     }

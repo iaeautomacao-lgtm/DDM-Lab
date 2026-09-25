@@ -44,7 +44,7 @@ export const Profile = () => {
   const [jobTitle, setJobTitle] = useState('');
   const [department, setDepartment] = useState('');
   const [unit, setUnit] = useState(UNIT_OPTIONS[0]);
-  const [focusArea, setFocusArea] = useState('Automacao de Campanhas B2B');
+  const [focusArea, setFocusArea] = useState('Automação de Campanhas B2B');
   const [avatarUrl, setAvatarUrl] = useState(AVAILABLE_AVATARS[0].url);
   const [isSaving, setIsSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -55,7 +55,7 @@ export const Profile = () => {
     setJobTitle(profile?.jobTitle || '');
     setDepartment(profile?.department || '');
     setUnit(profile?.unit || UNIT_OPTIONS[0]);
-    setFocusArea('Automacao de Campanhas B2B');
+    setFocusArea('Automação de Campanhas B2B');
     setAvatarUrl(profile?.avatarUrl || AVAILABLE_AVATARS[0].url);
   }, [profile]);
 
@@ -86,7 +86,7 @@ export const Profile = () => {
     setJobTitle(profile?.jobTitle || '');
     setDepartment(profile?.department || '');
     setUnit(profile?.unit || UNIT_OPTIONS[0]);
-    setFocusArea('Automacao de Campanhas B2B');
+    setFocusArea('Automação de Campanhas B2B');
     setAvatarUrl(profile?.avatarUrl || AVAILABLE_AVATARS[0].url);
     setSaved(false);
     setSaveError('');
@@ -96,7 +96,7 @@ export const Profile = () => {
     <div className="mx-auto max-w-5xl space-y-10 pb-20">
       <header className="space-y-2">
         <h1 className="text-3xl font-bold tracking-tight">Meu Perfil</h1>
-        <p className="text-text-secondary">Visualize suas informacoes profissionais e personalize como voce aparece no Hub.</p>
+        <p className="text-text-secondary">Visualize suas informações profissionais e personalize como você aparece no Hub.</p>
       </header>
 
       <Card className="border-none bg-surface/50 p-8">
@@ -113,7 +113,7 @@ export const Profile = () => {
             <div className="space-y-1">
               <h2 className="text-2xl font-bold text-foreground">{profile?.displayName || 'Colaborador'}</h2>
               <p className="text-sm font-medium text-primary">
-                {profile?.preferredName ? `Chamado no Hub como ${profile.preferredName}` : 'Defina como voce quer ser chamado'}
+                {profile?.preferredName ? `Chamado no Hub como ${profile.preferredName}` : 'Defina como você quer ser chamado'}
               </p>
               <div className="flex items-center justify-center gap-2 text-text-secondary md:justify-start">
                 <Mail size={16} />
@@ -153,7 +153,7 @@ export const Profile = () => {
               <ProfileField icon={User} label="Nome completo" value={profile?.displayName || ''} readOnly />
               <EditableField
                 icon={User}
-                label="Como voce quer ser chamado?"
+                label="Como você quer ser chamado?"
                 value={preferredName}
                 onChange={setPreferredName}
                 placeholder="Ex: Gisele"

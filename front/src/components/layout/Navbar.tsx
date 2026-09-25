@@ -6,14 +6,14 @@ import { useTheme } from '../../lib/ThemeContext';
 import { cn } from '../../lib/utils';
 
 const routeTitles: Record<string, { title: string; subtitle: string }> = {
-  '/': { title: 'Dashboard', subtitle: 'Visao geral da plataforma' },
-  '/solucoes': { title: 'Soluções', subtitle: 'Catalogo de dashboards e sistemas dos setores' },
+  '/': { title: 'Dashboard', subtitle: 'Visão geral da plataforma' },
+  '/solucoes': { title: 'Soluções', subtitle: 'Catálogo de dashboards e sistemas dos setores' },
   '/generator': { title: 'Criar Pedido', subtitle: 'Monte seu prompt ideal' },
   '/library': { title: 'Modelos Prontos', subtitle: 'Templates por setor' },
-  '/settings': { title: 'Configuracoes', subtitle: 'Uso responsavel e preferencias' },
-  '/admin': { title: 'Administracao', subtitle: 'Painel de controle' },
-  '/ddmcreator': { title: 'DDM Creator', subtitle: 'Criacao de imagens com IA' },
-  '/history': { title: 'Historico', subtitle: 'Seus pedidos anteriores' },
+  '/settings': { title: 'Configurações', subtitle: 'Uso responsável e preferências' },
+  '/admin': { title: 'Administração', subtitle: 'Painel de controle' },
+  '/ddmcreator': { title: 'DDM Creator', subtitle: 'Criação de imagens com IA' },
+  '/history': { title: 'Histórico', subtitle: 'Seus pedidos anteriores' },
   '/favorites': { title: 'Favoritos', subtitle: 'Templates salvos' },
 };
 

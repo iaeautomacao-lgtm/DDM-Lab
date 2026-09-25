@@ -114,7 +114,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           });
       applySession(session);
     } catch (error) {
-      throw new Error(error instanceof ApiError ? error.message : 'Nao foi possivel entrar. Tente novamente.');
+      throw new Error(error instanceof ApiError ? error.message : 'Não foi possível entrar. Tente novamente.');
     }
   };
 
@@ -132,7 +132,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const session = await api.post<SessionResponse>('/auth/rh-login', { email: normalizedEmail, password });
       applySession(session);
     } catch (error) {
-      throw new Error(error instanceof ApiError ? error.message : 'Nao foi possivel entrar.');
+      throw new Error(error instanceof ApiError ? error.message : 'Não foi possível entrar.');
     }
   };
 
@@ -156,14 +156,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw new Error('Use seu e-mail corporativo DDM para continuar.');
     }
     if (!normalizedToken) {
-      throw new Error('Informe o codigo recebido por e-mail.');
+      throw new Error('Informe o código recebido por e-mail.');
     }
 
     try {
       await api.post('/auth/password-reset/verify', { email: normalizedEmail, token: normalizedToken });
     } catch (error) {
       throw new Error(
-        error instanceof ApiError ? error.message : 'Codigo invalido ou expirado. Solicite um novo codigo.',
+        error instanceof ApiError ? error.message : 'Código inválido ou expirado. Solicite um novo código.',
       );
     }
   };
@@ -178,7 +178,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await api.post('/auth/password-reset/confirm', { password: normalizedPassword });
     } catch (error) {
-      throw new Error(error instanceof ApiError ? error.message : 'Nao foi possivel redefinir a senha.');
+      throw new Error(error instanceof ApiError ? error.message : 'Não foi possível redefinir a senha.');
     }
   };
 
@@ -198,7 +198,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { profile: nextProfile } = await api.patch<{ profile: UserProfile }>('/profile', updates);
       setProfile(nextProfile);
     } catch (error) {
-      throw new Error(error instanceof ApiError ? error.message : 'Nao foi possivel salvar o perfil.');
+      throw new Error(error instanceof ApiError ? error.message : 'Não foi possível salvar o perfil.');
     }
   };
 

@@ -113,11 +113,11 @@ const normalizeError = (error: unknown) => {
     return new Error('Limite de requisicoes da OpenAI atingido. Tente novamente em instantes.');
   }
   if (raw.includes('503') || raw.includes('unavailable')) {
-    return new Error('O servico da OpenAI esta indisponivel no momento. Tente novamente em instantes.');
+    return new Error('O serviço da OpenAI está indisponível no momento. Tente novamente em instantes.');
   }
 
   if (error instanceof Error) return error;
-  return new Error('Nao foi possivel obter resposta da OpenAI no momento.');
+  return new Error('Não foi possível obter resposta da OpenAI no momento.');
 };
 
 const callOpenAI = async (
@@ -167,7 +167,7 @@ const callOpenAI = async (
   const rawText = messageItem?.content
     ?.find((part) => part.type === 'output_text')
     ?.text?.trim();
-  if (!rawText) throw new Error('A OpenAI nao retornou conteudo nesta resposta.');
+  if (!rawText) throw new Error('A OpenAI não retornou conteúdo nesta resposta.');
   // Strip file_search citation markers injected by the Responses API (e.g. [4:0 source]).
   const text = rawText.replace(/\u3010\d+:\d+\u2020[^\u3011]*\u3011/g, '').trim();
 

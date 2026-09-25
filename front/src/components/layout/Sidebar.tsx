@@ -17,13 +17,13 @@ import { Logo } from '../ui/Logo';
 import { useAuth } from '../../lib/AuthContext';
 
 const navItems: Array<{ icon: React.ElementType; label: string; path: string; adminOnly?: boolean }> = [
-  { icon: LayoutDashboard, label: 'Inicio', path: '/' },
-  { icon: Boxes, label: 'Solucoes', path: '/solucoes' },
+  { icon: LayoutDashboard, label: 'Início', path: '/' },
+  { icon: Boxes, label: 'Soluções', path: '/solucoes' },
   { icon: Sparkles, label: 'Criar Pedido', path: '/generator' },
   { icon: Library, label: 'Modelos Prontos', path: '/library' },
   { icon: ImagePlus, label: 'DDM Creator', path: '/ddmcreator' },
   { icon: User, label: 'Meu Perfil', path: '/profile' },
-  { icon: Settings, label: 'Uso Responsavel', path: '/settings' },
+  { icon: Settings, label: 'Uso Responsável', path: '/settings' },
 ];
 
 interface SidebarProps {
@@ -123,7 +123,7 @@ export const Sidebar = ({ isCollapsed, onToggle }: SidebarProps) => {
           <>
             {!isCollapsed && (
               <p className="mb-2 mt-4 px-3 text-[10px] font-bold uppercase tracking-widest text-text-secondary">
-                Administracao
+                Administração
               </p>
             )}
             {isCollapsed && <div className="my-2 border-t border-border" />}

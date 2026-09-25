@@ -115,7 +115,7 @@ export const fetchPromptTemplates = async () => {
     description: String(row.description || 'Sem descricao.'),
     department: String(row.department || 'Marketing') as Template['department'],
     objective: String(row.objective || 'Apoiar a rotina com IA.'),
-    complexity: String(row.complexity || 'Basico') as Template['complexity'],
+    complexity: String(row.complexity || 'Básico') as Template['complexity'],
     tags: Array.isArray(row.tags) ? (row.tags as string[]) : [],
     basePrompt: String(row.base_prompt || ''),
     variables: Array.isArray(row.variables) ? (row.variables as string[]) : [],

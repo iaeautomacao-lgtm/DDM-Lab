@@ -9,7 +9,7 @@ initTheme();
 const rootElement = document.getElementById('root');
 
 if (!rootElement) {
-  throw new Error('Elemento root nao encontrado.');
+  throw new Error('Elemento root não encontrado.');
 }
 
 // Nenhuma variavel de ambiente precisa existir no bundle do cliente: banco,
@@ -20,8 +20,8 @@ const renderBootError = (message: string) => {
     <StrictMode>
       <div className="flex min-h-screen items-center justify-center bg-black px-6 text-white">
         <div className="w-full max-w-xl rounded-3xl border border-rose-500/20 bg-zinc-950 p-8 shadow-2xl">
-          <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-rose-400">Erro de Configuracao</p>
-          <h1 className="mt-3 text-2xl font-black">O app nao conseguiu iniciar</h1>
+          <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-rose-400">Erro de Configuração</p>
+          <h1 className="mt-3 text-2xl font-black">O app não conseguiu iniciar</h1>
           <p className="mt-4 whitespace-pre-wrap text-sm leading-relaxed text-zinc-300">{message}</p>
         </div>
       </div>
@@ -42,6 +42,6 @@ import('./App.tsx')
     renderBootError(
       error instanceof Error
         ? error.message
-        : 'Nao foi possivel carregar a aplicacao. Verifique os logs do servidor.',
+        : 'Não foi possível carregar a aplicação. Verifique os logs do servidor.',
     );
   });

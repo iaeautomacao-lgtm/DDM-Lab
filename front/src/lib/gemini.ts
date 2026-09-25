@@ -104,7 +104,7 @@ const callGemini = async (
   }
 
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-  if (!text) throw new Error('O Gemini nao retornou conteudo nesta resposta.');
+  if (!text) throw new Error('O Gemini não retornou conteúdo nesta resposta.');
   return text;
 };
 

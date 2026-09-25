@@ -56,7 +56,7 @@ export const SolutionFormModal = ({ solution, defaultSector, onClose, onSaved }:
       }
       onSaved();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Nao foi possivel salvar a solucao.');
+      setError(err instanceof Error ? err.message : 'Não foi possível salvar a solução.');
     } finally {
       setSaving(false);
     }

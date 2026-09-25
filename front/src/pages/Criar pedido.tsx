@@ -286,7 +286,7 @@ export const Generator = () => {
       setLoadError(
         error instanceof Error
           ? error.message
-          : 'Nao foi possivel excluir a conversa agora. Tente novamente em instantes.',
+          : 'Não foi possível excluir a conversa agora. Tente novamente em instantes.',
       );
     }
   };
@@ -376,7 +376,7 @@ export const Generator = () => {
       const conversationId = await persistConversationIfPossible(promptText);
 
       if (!conversationId) {
-        throw new Error('Nao foi possivel criar a conversa. Tente novamente em instantes.');
+        throw new Error('Não foi possível criar a conversa. Tente novamente em instantes.');
       }
 
       await appendConversationMessage(conversationId, 'user', promptText, autoModel, user?.id || null);
@@ -467,8 +467,8 @@ export const Generator = () => {
           console.error('Erro ao registrar uso:', usageError);
           setLoadError(
             usageError instanceof Error
-              ? `Resposta gerada, mas nao foi possivel registrar o uso no painel: ${usageError.message}`
-              : 'Resposta gerada, mas nao foi possivel registrar o uso no painel.',
+              ? `Resposta gerada, mas não foi possível registrar o uso no painel: ${usageError.message}`
+              : 'Resposta gerada, mas não foi possível registrar o uso no painel.',
           );
         }
       }
@@ -487,7 +487,7 @@ export const Generator = () => {
       setLoadError(
         isNetworkError
           ? 'Falha de conexão com o servidor (rede, firewall ou serviço indisponível). Verifique sua internet e tente novamente.'
-          : rawMessage || 'Nao foi possivel gerar a resposta do agente agora. Tente novamente em instantes.',
+          : rawMessage || 'Não foi possível gerar a resposta do agente agora. Tente novamente em instantes.',
       );
     } finally {
       setIsSending(false);
@@ -954,7 +954,7 @@ export const Generator = () => {
                         handleSend();
                       }
                     }}
-                    placeholder="Explique o que voce precisa..."
+                    placeholder="Explique o que você precisa..."
                     className="min-h-[52px] flex-1 resize-none bg-transparent p-2 text-sm text-foreground placeholder:text-text-secondary focus:outline-none"
                   />
                   <button
