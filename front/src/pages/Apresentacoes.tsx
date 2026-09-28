@@ -236,8 +236,20 @@ export const Apresentacoes = () => {
 
   const currentSlide = slides?.[slideIndex] ?? null;
 
+  // Setas/Esc funcionam tambem na visualizacao em tela cheia.
+  useEffect(() => {
+    if (!zoomOpen || !slides) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setZoomOpen(false);
+      if (e.key === 'ArrowLeft') setSlideIndex((i) => Math.max(0, i - 1));
+      if (e.key === 'ArrowRight') setSlideIndex((i) => Math.min(slides.length - 1, i + 1));
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [zoomOpen, slides]);
+
   return (
-    <div className="mx-auto max-w-6xl space-y-6 px-4 pb-20 md:px-0">
+    <div className="mx-auto max-w-[1600px] space-y-6 px-4 pb-20 md:px-6">
       <header>
         <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-text-tertiary">DDM Lab</div>
         <h1 className="text-3xl font-extrabold tracking-tight">DDM Apresentações</h1>
@@ -255,7 +267,7 @@ export const Apresentacoes = () => {
       {error && <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-400">{error}</div>}
 
       {activeTab === 'criar' ? (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[340px_1fr]">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[300px_1fr] xl:grid-cols-[300px_minmax(0,1fr)]">
           {/* Painel de configuracao */}
           <Card className="h-fit space-y-4 p-5">
             <div>
@@ -570,7 +582,7 @@ export const Apresentacoes = () => {
       {/* Visualizacao em tela cheia */}
       {zoomOpen && currentSlide && slides && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-6 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-black/90 p-6 backdrop-blur-sm"
           onClick={() => setZoomOpen(false)}
         >
           <button
@@ -579,7 +591,8 @@ export const Apresentacoes = () => {
           >
             <X size={22} />
           </button>
-          <div className="w-full max-w-5xl" onClick={(e) => e.stopPropagation()}>
+
+          <div className="w-full max-w-6xl" onClick={(e) => e.stopPropagation()}>
             <SlideRenderer
               slide={currentSlide}
               theme={theme}
@@ -588,6 +601,28 @@ export const Apresentacoes = () => {
               brand={{ primaryColor, accentColor }}
               logoDataUrl={logoDataUrl}
             />
+          </div>
+
+          <div className="flex items-center gap-4" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => setSlideIndex((i) => Math.max(0, i - 1))}
+              disabled={slideIndex === 0}
+              className="flex items-center gap-1 rounded-lg bg-white/10 px-4 py-2 text-sm font-medium text-white/80 transition-colors hover:bg-white/20 hover:text-white disabled:opacity-30"
+            >
+              <ChevronLeft size={16} />
+              Anterior
+            </button>
+            <span className="text-sm text-white/60">
+              Slide {slideIndex + 1} de {slides.length}
+            </span>
+            <button
+              onClick={() => setSlideIndex((i) => Math.min(slides.length - 1, i + 1))}
+              disabled={slideIndex === slides.length - 1}
+              className="flex items-center gap-1 rounded-lg bg-white/10 px-4 py-2 text-sm font-medium text-white/80 transition-colors hover:bg-white/20 hover:text-white disabled:opacity-30"
+            >
+              Próximo
+              <ChevronRight size={16} />
+            </button>
           </div>
         </div>
       )}
