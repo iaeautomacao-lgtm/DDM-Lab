@@ -249,7 +249,7 @@ export const Apresentacoes = () => {
   }, [zoomOpen, slides]);
 
   return (
-    <div className="mx-auto max-w-[1600px] space-y-6 px-4 pb-20 md:px-6">
+    <div className="mx-auto w-full max-w-[1480px] space-y-6 px-4 pb-20 md:px-6 lg:px-10">
       <header>
         <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-text-tertiary">DDM Lab</div>
         <h1 className="text-3xl font-extrabold tracking-tight">DDM Apresentações</h1>
@@ -267,7 +267,7 @@ export const Apresentacoes = () => {
       {error && <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-400">{error}</div>}
 
       {activeTab === 'criar' ? (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[300px_1fr] xl:grid-cols-[300px_minmax(0,1fr)]">
+        <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[390px_minmax(0,1fr)]">
           {/* Painel de configuracao */}
           <Card className="h-fit space-y-4 p-5">
             <div>
@@ -413,22 +413,19 @@ export const Apresentacoes = () => {
           </Card>
 
           {/* Pre-visualizacao + edicao */}
-          <div className="space-y-4">
-            {!slides ? (
-              <Card className="flex min-h-[360px] flex-col items-center justify-center gap-3 p-10 text-center">
-                <PresentationIcon size={32} className="text-text-secondary/40" />
-                <p className="text-sm text-text-secondary">
-                  Preencha o título ao lado e clique em <span className="text-foreground">Gerar com IA</span>, ou comece do
-                  zero pra escrever você mesmo.
-                </p>
-              </Card>
-            ) : (
-              <>
-                <div className="flex items-center justify-between gap-3">
-                  <h2 className="truncate text-lg font-bold text-foreground">{deckTitle}</h2>
+          <div className="min-w-0 space-y-4">
+            <Card className="p-5">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <h2 className="text-sm font-semibold text-foreground">Pré-visualização</h2>
+                  <p className="mt-0.5 truncate text-xs text-text-secondary">
+                    {slides ? deckTitle : 'Sua apresentação aparecerá aqui'}
+                  </p>
+                </div>
+                {slides && (
                   <div className="flex shrink-0 items-center gap-2">
-                    <span className="text-xs text-text-secondary">
-                      Slide {slideIndex + 1} de {slides.length}
+                    <span className="rounded-full bg-surface-hover px-3 py-1 text-xs font-medium text-text-secondary">
+                      {slideIndex + 1}/{slides.length} slides
                     </span>
                     <button
                       onClick={() => setZoomOpen(true)}
@@ -438,44 +435,73 @@ export const Apresentacoes = () => {
                       <ZoomIn size={14} />
                     </button>
                   </div>
-                </div>
-
-                {currentSlide && (
-                  <SlideRenderer
-                    slide={currentSlide}
-                    theme={theme}
-                    index={slideIndex}
-                    total={slides.length}
-                    brand={{ primaryColor, accentColor }}
-                    logoDataUrl={logoDataUrl}
-                  />
                 )}
+              </div>
 
-                <div className="flex items-center justify-between">
+              <div className="flex min-h-[420px] items-center justify-center rounded-2xl bg-surface-hover/60 p-6 xl:min-h-[560px]">
+                {!slides ? (
+                  <div className="flex max-w-md flex-col items-center gap-3 text-center">
+                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-surface text-text-secondary/50">
+                      <PresentationIcon size={26} />
+                    </div>
+                    <h3 className="text-base font-semibold text-foreground">Comece preenchendo o briefing</h3>
+                    <p className="text-sm leading-6 text-text-secondary">
+                      Preencha o título e o objetivo ao lado e clique em{' '}
+                      <strong className="font-semibold text-foreground">Gerar com IA</strong>, ou comece do zero pra
+                      escrever você mesmo.
+                    </p>
+                  </div>
+                ) : (
+                  currentSlide && (
+                    <div className="w-full max-w-[960px]">
+                      <SlideRenderer
+                        slide={currentSlide}
+                        theme={theme}
+                        index={slideIndex}
+                        total={slides.length}
+                        brand={{ primaryColor, accentColor }}
+                        logoDataUrl={logoDataUrl}
+                      />
+                    </div>
+                  )
+                )}
+              </div>
+            </Card>
+
+            {slides && (
+              <>
+                <div className="flex items-center gap-3">
                   <button
                     onClick={() => setSlideIndex((i) => Math.max(0, i - 1))}
                     disabled={slideIndex === 0}
-                    className="flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-text-secondary hover:text-foreground disabled:opacity-30"
+                    className="flex shrink-0 items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-text-secondary hover:text-foreground disabled:opacity-30"
                   >
                     <ChevronLeft size={14} />
                     Anterior
                   </button>
-                  <div className="flex flex-wrap justify-center gap-1.5">
-                    {slides.map((_, i) => (
+                  <div className="flex flex-1 gap-2 overflow-x-auto pb-1">
+                    {slides.map((s, i) => (
                       <button
                         key={i}
                         onClick={() => setSlideIndex(i)}
-                        className={`h-1.5 w-5 rounded-full transition-colors ${
-                          i === slideIndex ? 'bg-primary' : 'bg-surface-hover hover:bg-border-hover'
+                        title={s.title || s.quote || `Slide ${i + 1}`}
+                        className={`flex h-14 w-24 shrink-0 flex-col items-center justify-center gap-1 rounded-lg border text-[10px] font-medium transition-colors ${
+                          i === slideIndex
+                            ? 'border-primary bg-primary/10 text-primary'
+                            : 'border-border text-text-secondary hover:border-border-hover hover:text-foreground'
                         }`}
-                        title={`Slide ${i + 1}`}
-                      />
+                      >
+                        <span className="font-bold">{i + 1}</span>
+                        <span className="truncate px-1 text-[9px] uppercase tracking-wide">
+                          {SLIDE_TYPE_OPTIONS.find((o) => o.value === s.type)?.label}
+                        </span>
+                      </button>
                     ))}
                   </div>
                   <button
                     onClick={() => setSlideIndex((i) => Math.min(slides.length - 1, i + 1))}
                     disabled={slideIndex === slides.length - 1}
-                    className="flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-text-secondary hover:text-foreground disabled:opacity-30"
+                    className="flex shrink-0 items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-text-secondary hover:text-foreground disabled:opacity-30"
                   >
                     Próximo
                     <ChevronRight size={14} />
