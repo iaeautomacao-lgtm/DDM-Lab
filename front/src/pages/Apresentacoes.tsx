@@ -114,6 +114,13 @@ export const Apresentacoes = () => {
 
   const [primaryColor, setPrimaryColor] = useState<string | null>(null);
   const [accentColor, setAccentColor] = useState<string | null>(null);
+  // true assim que a pessoa mexe no seletor de cor na mao — a partir dai, a
+  // cor sugerida de cada padrao para de sobrescrever a escolha dela.
+  const [primaryColorTouched, setPrimaryColorTouched] = useState(false);
+  const handlePrimaryColorChange = (color: string | null) => {
+    setPrimaryColor(color);
+    setPrimaryColorTouched(true);
+  };
   const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const primaryColorRef = useRef<HTMLInputElement>(null);
@@ -239,6 +246,7 @@ export const Apresentacoes = () => {
       setObjective(full.objective || '');
       setTheme(full.theme);
       setPrimaryColor(full.primary_color);
+      setPrimaryColorTouched(Boolean(full.primary_color));
       setAccentColor(full.accent_color);
       setLogoDataUrl(full.logo_data_url);
       setSlides(full.slides);
@@ -381,7 +389,13 @@ export const Apresentacoes = () => {
                   <button
                     key={p.id}
                     type="button"
-                    onClick={() => setPatternId(p.id)}
+                    onClick={() => {
+                      setPatternId(p.id);
+                      // So aplica a cor sugerida do padrao se a pessoa ainda
+                      // nao escolheu uma cor de marca na mao — senao
+                      // atropelaria uma escolha deliberada dela.
+                      if (!primaryColorTouched) setPrimaryColor(p.suggestedPrimaryColor);
+                    }}
                     title={p.description}
                     className={`w-full rounded-xl border px-3 py-2 text-left text-xs font-semibold transition-colors ${
                       patternId === p.id
@@ -447,7 +461,7 @@ export const Apresentacoes = () => {
                 Cores da marca
               </label>
               <div className="flex gap-4">
-                <ColorSwatch label="Primária" color={primaryColor} onChange={setPrimaryColor} inputRef={primaryColorRef} />
+                <ColorSwatch label="Primária" color={primaryColor} onChange={handlePrimaryColorChange} inputRef={primaryColorRef} />
                 <ColorSwatch label="Destaque" color={accentColor} onChange={setAccentColor} inputRef={accentColorRef} />
               </div>
             </div>

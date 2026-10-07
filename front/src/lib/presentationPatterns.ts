@@ -11,6 +11,10 @@ export interface PresentationPattern {
   id: string;
   label: string;
   description: string;
+  /** Cor de destaque sugerida — so e aplicada se a pessoa ainda nao escolheu
+      uma cor de marca manualmente. Da identidade visual propria pra cada
+      padrao, sem precisar mexer no tema (DDM/Escuro/Claro). */
+  suggestedPrimaryColor: string;
   slideSequence: SlideType[];
   examples: Partial<Record<SlideType, string[]>>;
 }
@@ -20,6 +24,7 @@ export const PRESENTATION_PATTERNS: PresentationPattern[] = [
     id: 'comite_gerencial',
     label: 'Comitê Gerencial',
     description: 'Reunião executiva com panorama, oportunidades, funil e custos — pra diretoria/comitê.',
+    suggestedPrimaryColor: '#FF5100',
     slideSequence: ['capa', 'topicos', 'kpi_grid', 'grafico', 'insight_cards', 'funil', 'kpi_grid', 'fechamento'],
     examples: {
       capa: ['Comitê Gerencial — [Cliente]: oportunidades e caminhos para ampliar o resultado'],
@@ -40,6 +45,7 @@ export const PRESENTATION_PATTERNS: PresentationPattern[] = [
     id: 'analise_resultados',
     label: 'Análise de Resultados',
     description: 'Operação de discagem/cobrança: cobertura de base, funil, evolução mensal e plano de ação.',
+    suggestedPrimaryColor: '#2E7DD1',
     slideSequence: ['capa', 'kpi_grid', 'kpi_grid', 'funil', 'grafico', 'insight_cards', 'fechamento'],
     examples: {
       capa: ['Análise de Resultados — Métricas consolidadas de discagem, conversão e engajamento'],
@@ -57,6 +63,7 @@ export const PRESENTATION_PATTERNS: PresentationPattern[] = [
     id: 'relatorio_qualidade',
     label: 'Relatório de Qualidade',
     description: 'Monitoria de atendimento: quartil de desempenho, oportunidades por nível e plano de ação.',
+    suggestedPrimaryColor: '#0E9F6E',
     slideSequence: ['capa', 'kpi_grid', 'tabela', 'insight_cards', 'fechamento'],
     examples: {
       capa: ['Análise de Qualidade — Resumo executivo e operacional do período'],
@@ -74,6 +81,7 @@ export const PRESENTATION_PATTERNS: PresentationPattern[] = [
     id: 'check_point',
     label: 'Check Point',
     description: 'Acompanhamento periódico: indicador comparado mês a mês, ranking e planos de ação.',
+    suggestedPrimaryColor: '#6C5CE7',
     slideSequence: ['capa', 'tabela', 'tabela', 'kpi_grid', 'insight_cards'],
     examples: {
       capa: ['Check Point — Grupo DDM | Data: [DD/MM/AAAA]'],
@@ -88,6 +96,7 @@ export const PRESENTATION_PATTERNS: PresentationPattern[] = [
     id: 'reuniao_resultados',
     label: 'Reunião de Resultados',
     description: 'Consolidado por canal (voz/WhatsApp/e-mail), ranking de demandas e melhorias implementadas.',
+    suggestedPrimaryColor: '#E8590C',
     slideSequence: ['capa', 'topicos', 'tabela', 'kpi_grid', 'tabela', 'insight_cards', 'fechamento'],
     examples: {
       capa: ['Central de Relacionamento [Cliente] — [Mês/Ano]'],
