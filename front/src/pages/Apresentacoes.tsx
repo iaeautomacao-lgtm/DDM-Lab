@@ -119,6 +119,14 @@ export const Apresentacoes = () => {
   const primaryColorRef = useRef<HTMLInputElement>(null);
   const accentColorRef = useRef<HTMLInputElement>(null);
 
+  // Guarda o briefing usado na ultima geracao — se a pessoa mudar titulo,
+  // objetivo, padrao ou quantidade depois de ja ter um deck, avisa que
+  // precisa gerar de novo pra aplicar (trocar o padrao sozinho nao
+  // regenera automaticamente).
+  const [lastGeneratedConfig, setLastGeneratedConfig] = useState<string | null>(null);
+  const currentConfigKey = JSON.stringify({ title: title.trim(), objective: objective.trim(), slideCount, patternId });
+  const isStale = lastGeneratedConfig !== null && lastGeneratedConfig !== currentConfigKey;
+
   const [presentationId, setPresentationId] = useState<string | null>(null);
   const [deckTitle, setDeckTitle] = useState('');
   const [slides, setSlides] = useState<Slide[] | null>(null);
@@ -168,6 +176,7 @@ export const Apresentacoes = () => {
       setSlides(deck.slides);
       setSlideIndex(0);
       setPresentationId(null);
+      setLastGeneratedConfig(currentConfigKey);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Não foi possível gerar a apresentação agora.');
     } finally {
@@ -475,6 +484,11 @@ export const Apresentacoes = () => {
             </div>
 
             <div className="space-y-2 border-t border-border pt-4">
+              {isStale && (
+                <p className="rounded-lg bg-primary/10 px-3 py-2 text-[11px] font-medium text-primary">
+                  Você mudou o briefing, o padrão ou a quantidade de slides — gere de novo pra aplicar na apresentação atual.
+                </p>
+              )}
               <Button onClick={handleGenerate} disabled={isGenerating} className="w-full justify-center">
                 {isGenerating ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
                 {isGenerating ? 'Gerando apresentação...' : slides ? 'Gerar de novo com IA' : 'Gerar com IA'}

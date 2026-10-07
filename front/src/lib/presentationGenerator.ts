@@ -11,6 +11,7 @@ Regras de conteúdo:
 - Nunca escreva parágrafos longos dentro de um slide — é apresentação, não documento
 - Nada de placeholders como [Nome] ou [Data] — invente um valor plausível ou omita
 - Números/percentuais/valores em KPI, gráfico e tabela devem ser plausíveis e coerentes com o objetivo descrito (o usuário não deu números reais, então estime com bom senso e deixe claro no texto que são estimativas quando for o caso)
+- O PRIMEIRO slide é SEMPRE do tipo "capa" e o ÚLTIMO é SEMPRE do tipo "fechamento", não importa o padrão ou a quantidade pedida
 
 Tipos de slide disponíveis e o formato JSON exato de cada um:
 { "type": "capa", "title": "...", "subtitle": "..." }
@@ -104,8 +105,19 @@ export const generatePresentationDeck = async (
 
   if (slides.length === 0) throw new Error('A IA não retornou nenhum slide válido. Tente reformular o objetivo.');
 
+  // Garantia defensiva: o modelo as vezes esquece a regra de abrir com
+  // "capa" e fechar com "fechamento" (mais comum sem padrao escolhido).
+  // Nunca deixa a apresentacao sair sem capa/fechamento por causa disso.
+  const finalTitle = parsed.title?.trim() || title;
+  if (slides[0]?.type !== 'capa') {
+    slides.unshift({ type: 'capa', title: finalTitle, subtitle: parsed.subtitle?.trim() || objective.trim() || undefined });
+  }
+  if (slides[slides.length - 1]?.type !== 'fechamento') {
+    slides.push({ type: 'fechamento', title: 'Obrigado' });
+  }
+
   return {
-    title: parsed.title?.trim() || title,
+    title: finalTitle,
     subtitle: parsed.subtitle?.trim(),
     slides,
   };
