@@ -67,10 +67,150 @@ export const SlideRenderer = ({ slide, theme, index, total, brand, logoDataUrl }
           </div>
         )}
 
-        {(slide.type === 'topicos' || slide.type === 'duas_colunas') && (
+        {(slide.type === 'topicos' ||
+          slide.type === 'duas_colunas' ||
+          slide.type === 'kpi_grid' ||
+          slide.type === 'insight_cards' ||
+          slide.type === 'funil' ||
+          slide.type === 'grafico' ||
+          slide.type === 'tabela') && (
           <>
             <h3 className="text-[clamp(0.8rem,2vw,1.6rem)] font-bold">{slide.title}</h3>
+            {slide.subtitle && (
+              <p className="mt-0.5 text-[clamp(0.45rem,0.85vw,0.7rem)]" style={{ color: c.muted }}>
+                {slide.subtitle}
+              </p>
+            )}
             <div className="mb-[3%] mt-1.5 h-[3px] w-[10%] min-w-6" style={{ background: c.accent }} />
+
+            {slide.type === 'kpi_grid' && (
+              <div className="flex flex-1 items-start gap-[3%]">
+                {(slide.kpiItems || []).map((item, i) => (
+                  <div key={i} className="flex-1">
+                    <p className="text-[clamp(1rem,2.6vw,2rem)] font-bold" style={{ color: c.accent }}>
+                      {item.value}
+                    </p>
+                    <p className="mt-1 text-[clamp(0.5rem,1vw,0.85rem)] font-semibold">{item.label}</p>
+                    {item.sublabel && (
+                      <p className="text-[clamp(0.45rem,0.8vw,0.7rem)]" style={{ color: c.muted }}>
+                        {item.sublabel}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {slide.type === 'insight_cards' && (
+              <div className="flex flex-1 gap-[3%]">
+                {(slide.insightItems || []).map((item, i) => (
+                  <div
+                    key={i}
+                    className="flex flex-1 flex-col gap-1.5 rounded-xl border p-[4%]"
+                    style={{ background: c.cardBackground, borderColor: c.border }}
+                  >
+                    {item.number && (
+                      <span
+                        className="flex h-[1.6em] w-[1.6em] items-center justify-center rounded-full text-[clamp(0.5rem,0.9vw,0.75rem)] font-bold text-white"
+                        style={{ background: c.accent }}
+                      >
+                        {item.number}
+                      </span>
+                    )}
+                    <p className="text-[clamp(0.55rem,1vw,0.9rem)] font-bold" style={{ color: c.accent }}>
+                      {item.title}
+                    </p>
+                    <p className="text-[clamp(0.5rem,0.9vw,0.8rem)] leading-snug">{item.body}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {slide.type === 'funil' && (
+              <div className="flex flex-1 items-stretch gap-[2%]">
+                {(slide.funnelStages || []).map((stage, i, arr) => (
+                  <div key={i} className="flex flex-1 items-center gap-[2%]">
+                    <div
+                      className="flex flex-1 flex-col items-center justify-center rounded-lg text-center"
+                      style={{
+                        height: `${100 - i * (45 / Math.max(arr.length - 1, 1))}%`,
+                        background: i === 0 ? c.accent : c.cardBackground,
+                        border: `1px solid ${c.border}`,
+                        color: i === 0 ? '#fff' : c.foreground,
+                        alignSelf: 'center',
+                      }}
+                    >
+                      <p className="text-[clamp(0.6rem,1.2vw,1rem)] font-bold">{stage.value}</p>
+                      <p className="text-[clamp(0.45rem,0.8vw,0.7rem)]" style={{ color: i === 0 ? 'rgba(255,255,255,0.8)' : c.muted }}>
+                        {stage.label}
+                      </p>
+                    </div>
+                    {i < arr.length - 1 && (
+                      <span className="text-[clamp(0.6rem,1.2vw,1rem)]" style={{ color: c.muted }}>
+                        ➜
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {slide.type === 'grafico' && (
+              <div className="flex flex-1 items-end gap-[3%] pb-[2%]">
+                {(slide.chartCategories || []).map((cat, i) => {
+                  const allValues = (slide.chartSeries || []).flatMap((s) => s.values);
+                  const max = Math.max(1, ...allValues);
+                  return (
+                    <div key={i} className="flex flex-1 flex-col items-center gap-1">
+                      <div className="flex h-full w-full items-end justify-center gap-0.5">
+                        {(slide.chartSeries || []).map((series, si) => (
+                          <div
+                            key={si}
+                            className="w-full rounded-t"
+                            style={{
+                              height: `${((series.values[i] || 0) / max) * 100}%`,
+                              background: si === 0 ? c.accent : c.muted,
+                              opacity: si === 0 ? 1 : 0.6,
+                            }}
+                            title={String(series.values[i])}
+                          />
+                        ))}
+                      </div>
+                      <span className="text-[clamp(0.4rem,0.75vw,0.65rem)]" style={{ color: c.muted }}>
+                        {cat}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {slide.type === 'tabela' && (
+              <div className="flex-1 overflow-hidden rounded-lg border" style={{ borderColor: c.border }}>
+                <table className="w-full text-[clamp(0.45rem,0.9vw,0.8rem)]">
+                  <thead>
+                    <tr style={{ background: c.accent }}>
+                      {(slide.tableColumns || []).map((col, i) => (
+                        <th key={i} className="px-2 py-1.5 text-left font-semibold text-white">
+                          {col}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(slide.tableRows || []).map((row, ri) => (
+                      <tr key={ri} style={{ background: ri % 2 ? 'transparent' : c.cardBackground }}>
+                        {row.map((cell, ci) => (
+                          <td key={ci} className="px-2 py-1.5">
+                            {cell}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
             {slide.type === 'topicos' && (
               <ul className="flex-1 space-y-2 text-[clamp(0.6rem,1.2vw,1.05rem)]">

@@ -33,7 +33,18 @@ const SLIDE_THEMES = {
   },
 };
 
-const VALID_TYPES = new Set(["capa", "topicos", "duas_colunas", "citacao", "fechamento"]);
+const VALID_TYPES = new Set([
+  "capa",
+  "topicos",
+  "duas_colunas",
+  "citacao",
+  "fechamento",
+  "kpi_grid",
+  "insight_cards",
+  "funil",
+  "grafico",
+  "tabela",
+]);
 const VALID_THEMES = new Set(Object.keys(SLIDE_THEMES));
 
 // Slide 16:9 em polegadas (padrao PptxGenJS LAYOUT_WIDE: 13.33 x 7.5).
@@ -162,17 +173,225 @@ const buildSlide = (pptx, slide, colors, index, total, brandName, logoDataUrl) =
     return;
   }
 
-  // topicos / duas_colunas — cabecalho comum
+  // Cabecalho comum pra todo slide "de conteudo" (titulo + barra de destaque).
+  // Usado por topicos, duas_colunas, kpi_grid, insight_cards, funil, grafico, tabela.
   s.addText(slide.title || "", {
     x: MARGIN,
     y: 0.55,
     w: SLIDE_W - MARGIN * 2,
-    h: 0.9,
+    h: 0.75,
     fontSize: 26,
     bold: true,
     color: hex(colors.foreground),
   });
+  if (slide.subtitle) {
+    s.addText(slide.subtitle, {
+      x: MARGIN,
+      y: 1.25,
+      w: SLIDE_W - MARGIN * 2,
+      h: 0.4,
+      fontSize: 12,
+      color: hex(colors.muted),
+    });
+  }
   s.addShape(pptx.ShapeType.rect, { x: MARGIN, y: 1.35, w: 0.9, h: 0.06, fill: { color: hex(colors.accent) } });
+
+  const BODY_Y = 1.7;
+  const BODY_H = SLIDE_H - 2.5;
+
+  if (slide.type === "kpi_grid") {
+    const items = slide.kpiItems || [];
+    const colW = (SLIDE_W - MARGIN * 2) / Math.max(items.length, 1);
+    items.forEach((item, i) => {
+      const x = MARGIN + i * colW;
+      s.addText(item.value || "", {
+        x,
+        y: BODY_Y,
+        w: colW - 0.3,
+        h: 1.1,
+        fontSize: 32,
+        bold: true,
+        color: hex(colors.accent),
+      });
+      s.addText(item.label || "", {
+        x,
+        y: BODY_Y + 1.1,
+        w: colW - 0.3,
+        h: 0.5,
+        fontSize: 13,
+        bold: true,
+        color: hex(colors.foreground),
+      });
+      if (item.sublabel) {
+        s.addText(item.sublabel, {
+          x,
+          y: BODY_Y + 1.55,
+          w: colW - 0.3,
+          h: 0.4,
+          fontSize: 10,
+          color: hex(colors.muted),
+        });
+      }
+    });
+  }
+
+  if (slide.type === "insight_cards") {
+    const items = slide.insightItems || [];
+    const gap = 0.35;
+    const colW = (SLIDE_W - MARGIN * 2 - gap * (items.length - 1)) / Math.max(items.length, 1);
+    items.forEach((item, i) => {
+      const x = MARGIN + i * (colW + gap);
+      s.addShape(pptx.ShapeType.roundRect, {
+        x,
+        y: BODY_Y,
+        w: colW,
+        h: BODY_H,
+        fill: { color: hex(colors.cardBackground) },
+        line: { color: hex(colors.border), width: 0.75 },
+        rectRadius: 0.08,
+      });
+      if (item.number) {
+        s.addShape(pptx.ShapeType.ellipse, {
+          x: x + 0.2,
+          y: BODY_Y + 0.2,
+          w: 0.4,
+          h: 0.4,
+          fill: { color: hex(colors.accent) },
+        });
+        s.addText(String(item.number), {
+          x: x + 0.2,
+          y: BODY_Y + 0.2,
+          w: 0.4,
+          h: 0.4,
+          fontSize: 14,
+          bold: true,
+          color: "FFFFFF",
+          align: "center",
+          valign: "middle",
+        });
+      }
+      s.addText(item.title || "", {
+        x: x + 0.25,
+        y: BODY_Y + 0.75,
+        w: colW - 0.5,
+        h: 0.5,
+        fontSize: 14,
+        bold: true,
+        color: hex(colors.accent),
+      });
+      s.addText(item.body || "", {
+        x: x + 0.25,
+        y: BODY_Y + 1.3,
+        w: colW - 0.5,
+        h: BODY_H - 1.5,
+        fontSize: 11,
+        color: hex(colors.foreground),
+        valign: "top",
+      });
+    });
+  }
+
+  if (slide.type === "funil") {
+    const stages = slide.funnelStages || [];
+    const gap = 0.3;
+    const colW = (SLIDE_W - MARGIN * 2 - gap * (stages.length - 1)) / Math.max(stages.length, 1);
+    stages.forEach((stage, i) => {
+      const x = MARGIN + i * (colW + gap);
+      const scale = 1 - i * (0.5 / Math.max(stages.length - 1, 1));
+      const boxH = BODY_H * Math.max(scale, 0.45);
+      s.addShape(pptx.ShapeType.rect, {
+        x,
+        y: BODY_Y,
+        w: colW,
+        h: boxH,
+        fill: { color: hex(i === 0 ? colors.accent : colors.cardBackground) },
+        line: { color: hex(colors.border), width: 0.75 },
+      });
+      s.addText(stage.value || "", {
+        x,
+        y: BODY_Y + boxH / 2 - 0.5,
+        w: colW,
+        h: 0.5,
+        fontSize: 18,
+        bold: true,
+        align: "center",
+        color: hex(i === 0 ? "FFFFFF" : colors.foreground),
+      });
+      s.addText(stage.label || "", {
+        x,
+        y: BODY_Y + boxH / 2,
+        w: colW,
+        h: 0.4,
+        fontSize: 11,
+        align: "center",
+        color: hex(i === 0 ? "FFFFFF" : colors.muted),
+      });
+      if (i < stages.length - 1) {
+        s.addText("➜", {
+          x: x + colW,
+          y: BODY_Y + boxH / 2 - 0.25,
+          w: gap,
+          h: 0.5,
+          fontSize: 16,
+          align: "center",
+          color: hex(colors.muted),
+        });
+      }
+    });
+  }
+
+  if (slide.type === "grafico") {
+    const categories = slide.chartCategories || [];
+    const series = (slide.chartSeries || []).map((s2) => ({
+      name: s2.name,
+      labels: categories,
+      values: s2.values,
+    }));
+    const chartTypeMap = {
+      bar: pptx.ChartType.bar,
+      line: pptx.ChartType.line,
+      pie: pptx.ChartType.pie,
+    };
+    const chartColors = [colors.accent, colors.muted, colors.border].map(hex);
+    if (series.length > 0) {
+      s.addChart(chartTypeMap[slide.chartType] || pptx.ChartType.bar, series, {
+        x: MARGIN,
+        y: BODY_Y,
+        w: SLIDE_W - MARGIN * 2,
+        h: BODY_H,
+        chartColors,
+        showLegend: series.length > 1,
+        legendPos: "b",
+        catAxisLabelColor: hex(colors.muted),
+        valAxisLabelColor: hex(colors.muted),
+        dataLabelColor: hex(colors.foreground),
+      });
+    }
+  }
+
+  if (slide.type === "tabela") {
+    const columns = slide.tableColumns || [];
+    const rows = slide.tableRows || [];
+    const headerRow = columns.map((c) => ({
+      text: c,
+      options: { bold: true, color: "FFFFFF", fill: { color: hex(colors.accent) } },
+    }));
+    const bodyRows = rows.map((row) =>
+      row.map((cell) => ({ text: cell, options: { color: hex(colors.foreground) } } )),
+    );
+    if (headerRow.length > 0) {
+      s.addTable([headerRow, ...bodyRows], {
+        x: MARGIN,
+        y: BODY_Y,
+        w: SLIDE_W - MARGIN * 2,
+        h: Math.min(BODY_H, 0.5 * (bodyRows.length + 1)),
+        fontSize: 12,
+        border: { type: "solid", color: hex(colors.border), pt: 0.5 },
+        fill: { color: hex(colors.cardBackground) },
+        autoPage: false,
+      });
+    }
+  }
 
   if (slide.type === "topicos") {
     s.addText(

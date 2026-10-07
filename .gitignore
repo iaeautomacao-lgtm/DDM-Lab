@@ -56,3 +56,7 @@ front/storage/
 
 # Saida de scripts de migracao (pode conter hash de senha) — nunca versionar
 backend/scripts/out/
+
+# Decks reais de clientes usados so pra extrair padrao de apresentacao —
+# tem dado financeiro/operacional confidencial, nunca sobe pro git
+/MODELOS DE APRESENTAÇÃO/

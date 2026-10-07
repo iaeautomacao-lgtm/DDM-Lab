@@ -7,6 +7,7 @@ import {
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { generatePresentationDeck } from '../lib/presentationGenerator';
+import { PRESENTATION_PATTERNS } from '../lib/presentationPatterns';
 import { exportPresentationToPptx } from '../lib/pptxExport';
 import {
   createPresentation, deletePresentation, fetchPresentation, fetchPresentations, updatePresentation,
@@ -21,6 +22,11 @@ const SLIDE_TYPE_OPTIONS: Array<{ value: SlideType; label: string }> = [
   { value: 'capa', label: 'Capa' },
   { value: 'topicos', label: 'Tópicos' },
   { value: 'duas_colunas', label: 'Duas colunas' },
+  { value: 'kpi_grid', label: 'KPIs' },
+  { value: 'insight_cards', label: 'Cards de insight' },
+  { value: 'funil', label: 'Funil' },
+  { value: 'grafico', label: 'Gráfico' },
+  { value: 'tabela', label: 'Tabela' },
   { value: 'citacao', label: 'Citação' },
   { value: 'fechamento', label: 'Fechamento' },
 ];
@@ -40,12 +46,62 @@ const blankSlide = (type: SlideType): Slide => {
       return { type, quote: 'Frase de efeito aqui.', quoteAuthor: 'Autor' };
     case 'fechamento':
       return { type, title: 'Obrigado', bullets: ['contato@grupoddm.com.br'] };
+    case 'kpi_grid':
+      return {
+        type,
+        title: 'Título do slide',
+        kpiItems: [
+          { value: '0', label: 'Indicador 1' },
+          { value: '0', label: 'Indicador 2' },
+          { value: '0', label: 'Indicador 3' },
+        ],
+      };
+    case 'insight_cards':
+      return {
+        type,
+        title: 'Título do slide',
+        insightItems: [
+          { number: '1', title: 'Primeiro ponto', body: 'Descrição do ponto.' },
+          { number: '2', title: 'Segundo ponto', body: 'Descrição do ponto.' },
+        ],
+      };
+    case 'funil':
+      return {
+        type,
+        title: 'Título do slide',
+        funnelStages: [
+          { label: 'Etapa 1', value: '100%' },
+          { label: 'Etapa 2', value: '60%' },
+          { label: 'Etapa 3', value: '20%' },
+        ],
+      };
+    case 'grafico':
+      return {
+        type,
+        title: 'Título do slide',
+        chartType: 'bar',
+        chartCategories: ['Jan', 'Fev', 'Mar'],
+        chartSeries: [{ name: 'Série 1', values: [10, 20, 30] }],
+      };
+    case 'tabela':
+      return {
+        type,
+        title: 'Título do slide',
+        tableColumns: ['Indicador', 'Mês 1', 'Mês 2'],
+        tableRows: [['Exemplo', '0', '0']],
+      };
     default:
       return { type: 'topicos', title: 'Título do slide', bullets: ['Ponto 1', 'Ponto 2'] };
   }
 };
 
 const linesToBullets = (text: string) => text.split('\n').map((l) => l.trim()).filter(Boolean);
+const linesToCells = (text: string) =>
+  text
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((l) => l.split('|').map((c) => c.trim()));
 
 export const Apresentacoes = () => {
   const [activeTab, setActiveTab] = useState<Tab>('criar');
@@ -54,6 +110,7 @@ export const Apresentacoes = () => {
   const [objective, setObjective] = useState('');
   const [theme, setTheme] = useState<PresentationTheme>('ddm');
   const [slideCount, setSlideCount] = useState<number>(7);
+  const [patternId, setPatternId] = useState<string | null>(null);
 
   const [primaryColor, setPrimaryColor] = useState<string | null>(null);
   const [accentColor, setAccentColor] = useState<string | null>(null);
@@ -106,7 +163,7 @@ export const Apresentacoes = () => {
     setIsGenerating(true);
     setError('');
     try {
-      const deck = await generatePresentationDeck(title.trim(), objective.trim(), slideCount);
+      const deck = await generatePresentationDeck(title.trim(), objective.trim(), slideCount, patternId);
       setDeckTitle(deck.title);
       setSlides(deck.slides);
       setSlideIndex(0);
@@ -293,6 +350,41 @@ export const Apresentacoes = () => {
                 placeholder="Pra quem é, o que precisa convencer ou explicar, dados importantes..."
                 className="w-full resize-none rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary/40"
               />
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-widest text-text-tertiary">
+                Padrão (opcional)
+              </label>
+              <div className="space-y-1.5">
+                <button
+                  type="button"
+                  onClick={() => setPatternId(null)}
+                  className={`w-full rounded-xl border px-3 py-2 text-left text-xs font-semibold transition-colors ${
+                    patternId === null
+                      ? 'border-primary/40 bg-primary/10 text-primary'
+                      : 'border-border text-text-secondary hover:border-border-hover hover:text-foreground'
+                  }`}
+                >
+                  Sem padrão fixo
+                </button>
+                {PRESENTATION_PATTERNS.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => setPatternId(p.id)}
+                    title={p.description}
+                    className={`w-full rounded-xl border px-3 py-2 text-left text-xs font-semibold transition-colors ${
+                      patternId === p.id
+                        ? 'border-primary/40 bg-primary/10 text-primary'
+                        : 'border-border text-text-secondary hover:border-border-hover hover:text-foreground'
+                    }`}
+                  >
+                    {p.label}
+                    <span className="mt-0.5 block truncate text-[10px] font-normal text-text-tertiary">{p.description}</span>
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div>
@@ -726,10 +818,17 @@ const SlideEditForm = ({ slide, onChange }: { slide: Slide; onChange: (patch: Pa
     <Card className="space-y-3 p-4">
       <p className={labelClass}>Texto deste slide</p>
 
-      {(slide.type === 'capa' || slide.type === 'topicos' || slide.type === 'duas_colunas' || slide.type === 'fechamento') && (
+      {slide.type !== 'citacao' && (
         <div>
           <label className={labelClass}>Título</label>
           <input value={slide.title || ''} onChange={(e) => onChange({ title: e.target.value })} className={inputClass} />
+        </div>
+      )}
+
+      {(slide.type === 'kpi_grid' || slide.type === 'insight_cards' || slide.type === 'funil' || slide.type === 'grafico' || slide.type === 'tabela') && (
+        <div>
+          <label className={labelClass}>Subtítulo (opcional)</label>
+          <input value={slide.subtitle || ''} onChange={(e) => onChange({ subtitle: e.target.value })} className={inputClass} />
         </div>
       )}
 
@@ -789,6 +888,154 @@ const SlideEditForm = ({ slide, onChange }: { slide: Slide; onChange: (patch: Pa
             />
           </div>
         </div>
+      )}
+
+      {slide.type === 'kpi_grid' && (
+        <div>
+          <label className={labelClass}>KPIs (um por linha: valor | rótulo | detalhe opcional)</label>
+          <textarea
+            value={(slide.kpiItems || []).map((i) => [i.value, i.label, i.sublabel].filter(Boolean).join(' | ')).join('\n')}
+            onChange={(e) =>
+              onChange({
+                kpiItems: linesToCells(e.target.value).map(([value, label, sublabel]) => ({
+                  value: value || '',
+                  label: label || '',
+                  sublabel,
+                })),
+              })
+            }
+            rows={4}
+            placeholder={'R$ 1,8 mi | Recuperado | carteira do cliente'}
+            className={`${inputClass} resize-none font-mono`}
+          />
+        </div>
+      )}
+
+      {slide.type === 'insight_cards' && (
+        <div>
+          <label className={labelClass}>Cards (um por linha: número | título | texto)</label>
+          <textarea
+            value={(slide.insightItems || []).map((i) => [i.number, i.title, i.body].filter(Boolean).join(' | ')).join('\n')}
+            onChange={(e) =>
+              onChange({
+                insightItems: linesToCells(e.target.value).map(([number, title, body]) => ({
+                  number,
+                  title: title || '',
+                  body: body || '',
+                })),
+              })
+            }
+            rows={4}
+            placeholder={'1 | Régua de descontos | Texto explicando o ponto'}
+            className={`${inputClass} resize-none font-mono`}
+          />
+        </div>
+      )}
+
+      {slide.type === 'funil' && (
+        <div>
+          <label className={labelClass}>Etapas (uma por linha, da maior pra menor: rótulo | valor | detalhe opcional)</label>
+          <textarea
+            value={(slide.funnelStages || []).map((s) => [s.label, s.value, s.sublabel].filter(Boolean).join(' | ')).join('\n')}
+            onChange={(e) =>
+              onChange({
+                funnelStages: linesToCells(e.target.value).map(([label, value, sublabel]) => ({
+                  label: label || '',
+                  value: value || '',
+                  sublabel,
+                })),
+              })
+            }
+            rows={4}
+            placeholder={'Carteira | 131 mil | CPFs'}
+            className={`${inputClass} resize-none font-mono`}
+          />
+        </div>
+      )}
+
+      {slide.type === 'grafico' && (
+        <>
+          <div>
+            <label className={labelClass}>Tipo de gráfico</label>
+            <div className="grid grid-cols-3 gap-2">
+              {(['bar', 'line', 'pie'] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => onChange({ chartType: t })}
+                  className={`rounded-xl border py-2 text-xs font-semibold capitalize transition-colors ${
+                    (slide.chartType || 'bar') === t
+                      ? 'border-primary/40 bg-primary/10 text-primary'
+                      : 'border-border text-text-secondary hover:border-border-hover hover:text-foreground'
+                  }`}
+                >
+                  {t === 'bar' ? 'Barras' : t === 'line' ? 'Linha' : 'Pizza'}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className={labelClass}>Categorias (separadas por vírgula)</label>
+            <input
+              value={(slide.chartCategories || []).join(', ')}
+              onChange={(e) => onChange({ chartCategories: e.target.value.split(',').map((c) => c.trim()).filter(Boolean) })}
+              placeholder="Jan, Fev, Mar"
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className={labelClass}>Séries (uma por linha: nome | valores separados por vírgula)</label>
+            <textarea
+              value={(slide.chartSeries || []).map((s) => `${s.name} | ${s.values.join(', ')}`).join('\n')}
+              onChange={(e) =>
+                onChange({
+                  chartSeries: e.target
+                    .value
+                    .split('\n')
+                    .map((l) => l.trim())
+                    .filter(Boolean)
+                    .map((line) => {
+                      const [name, valuesText] = line.split('|');
+                      return {
+                        name: (name || '').trim(),
+                        values: (valuesText || '')
+                          .split(',')
+                          .map((v) => Number(v.trim()))
+                          .filter((v) => !Number.isNaN(v)),
+                      };
+                    }),
+                })
+              }
+              rows={3}
+              placeholder={'Taxa de contato | 10, 20, 30'}
+              className={`${inputClass} resize-none font-mono`}
+            />
+          </div>
+        </>
+      )}
+
+      {slide.type === 'tabela' && (
+        <>
+          <div>
+            <label className={labelClass}>Colunas (separadas por vírgula)</label>
+            <input
+              value={(slide.tableColumns || []).join(', ')}
+              onChange={(e) => onChange({ tableColumns: e.target.value.split(',').map((c) => c.trim()).filter(Boolean) })}
+              placeholder="Indicador, Mês 1, Mês 2"
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className={labelClass}>Linhas (uma por linha, células separadas por |)</label>
+            <textarea
+              value={(slide.tableRows || []).map((row) => row.join(' | ')).join('\n')}
+              onChange={(e) => onChange({ tableRows: linesToCells(e.target.value) })}
+              rows={4}
+              placeholder={'Taxa de contato | 22% | 27%'}
+              className={`${inputClass} resize-none font-mono`}
+            />
+          </div>
+        </>
       )}
 
       {slide.type === 'citacao' && (

@@ -1,11 +1,46 @@
 import { api } from './apiClient';
 
-export type SlideType = 'capa' | 'topicos' | 'duas_colunas' | 'citacao' | 'fechamento';
+export type SlideType =
+  | 'capa'
+  | 'topicos'
+  | 'duas_colunas'
+  | 'citacao'
+  | 'fechamento'
+  | 'kpi_grid'
+  | 'insight_cards'
+  | 'funil'
+  | 'grafico'
+  | 'tabela';
 export type PresentationTheme = 'claro' | 'escuro' | 'ddm';
 
 export interface SlideColumn {
   heading?: string;
   bullets: string[];
+}
+
+export interface KpiItem {
+  value: string;
+  label: string;
+  sublabel?: string;
+}
+
+export interface InsightItem {
+  number?: string;
+  title: string;
+  body: string;
+}
+
+export interface FunnelStage {
+  label: string;
+  value: string;
+  sublabel?: string;
+}
+
+export type ChartType = 'bar' | 'line' | 'pie';
+
+export interface ChartSeries {
+  name: string;
+  values: number[];
 }
 
 export interface Slide {
@@ -18,6 +53,19 @@ export interface Slide {
   quote?: string;
   quoteAuthor?: string;
   notes?: string;
+  // kpi_grid
+  kpiItems?: KpiItem[];
+  // insight_cards
+  insightItems?: InsightItem[];
+  // funil
+  funnelStages?: FunnelStage[];
+  // grafico (vira grafico nativo editavel no .pptx)
+  chartType?: ChartType;
+  chartCategories?: string[];
+  chartSeries?: ChartSeries[];
+  // tabela (vira tabela nativa editavel no .pptx)
+  tableColumns?: string[];
+  tableRows?: string[][];
 }
 
 export interface Presentation {
