@@ -7,7 +7,8 @@ import {
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { generatePresentationDeck } from '../lib/presentationGenerator';
-import { PRESENTATION_PATTERNS } from '../lib/presentationPatterns';
+import { PRESENTATION_PATTERNS, type PresentationPattern } from '../lib/presentationPatterns';
+import { fetchCustomPatterns, extractDocumentText } from '../lib/customPatternsData';
 import { exportPresentationToPptx } from '../lib/pptxExport';
 import {
   createPresentation, deletePresentation, fetchPresentation, fetchPresentations, updatePresentation,
@@ -15,6 +16,7 @@ import {
   type Presentation, type PresentationSummary, type PresentationTheme, type Slide, type SlideType,
 } from '../lib/presentationsData';
 import { SlideRenderer } from '../features/presentations/SlideRenderer';
+import { TemplateUploadModal } from '../features/presentations/TemplateUploadModal';
 
 type Tab = 'criar' | 'historico';
 
@@ -111,6 +113,21 @@ export const Apresentacoes = () => {
   const [theme, setTheme] = useState<PresentationTheme>('ddm');
   const [slideCount, setSlideCount] = useState<number>(7);
   const [patternId, setPatternId] = useState<string | null>(null);
+  const [customPatterns, setCustomPatterns] = useState<PresentationPattern[]>([]);
+  const [showTemplateUpload, setShowTemplateUpload] = useState(false);
+  const allPatterns = [...PRESENTATION_PATTERNS, ...customPatterns];
+  const selectedPattern = allPatterns.find((p) => p.id === patternId) ?? null;
+
+  const [documentFileName, setDocumentFileName] = useState<string | null>(null);
+  const [documentText, setDocumentText] = useState<string | null>(null);
+  const [isExtractingDocument, setIsExtractingDocument] = useState(false);
+  const documentInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    fetchCustomPatterns()
+      .then(setCustomPatterns)
+      .catch(() => {});
+  }, []);
 
   const [primaryColor, setPrimaryColor] = useState<string | null>(null);
   const [accentColor, setAccentColor] = useState<string | null>(null);
@@ -131,7 +148,7 @@ export const Apresentacoes = () => {
   // precisa gerar de novo pra aplicar (trocar o padrao sozinho nao
   // regenera automaticamente).
   const [lastGeneratedConfig, setLastGeneratedConfig] = useState<string | null>(null);
-  const currentConfigKey = JSON.stringify({ title: title.trim(), objective: objective.trim(), slideCount, patternId });
+  const currentConfigKey = JSON.stringify({ title: title.trim(), objective: objective.trim(), slideCount, patternId, documentText });
   const isStale = lastGeneratedConfig !== null && lastGeneratedConfig !== currentConfigKey;
 
   const [presentationId, setPresentationId] = useState<string | null>(null);
@@ -170,6 +187,23 @@ export const Apresentacoes = () => {
     e.target.value = '';
   };
 
+  const handleDocumentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setIsExtractingDocument(true);
+    setError('');
+    try {
+      const text = await extractDocumentText(file);
+      setDocumentText(text);
+      setDocumentFileName(file.name);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível ler esse documento.');
+    } finally {
+      setIsExtractingDocument(false);
+    }
+  };
+
   const handleGenerate = async () => {
     if (!title.trim()) {
       setError('Digite um título para a apresentação.');
@@ -178,7 +212,13 @@ export const Apresentacoes = () => {
     setIsGenerating(true);
     setError('');
     try {
-      const deck = await generatePresentationDeck(title.trim(), objective.trim(), slideCount, patternId);
+      const deck = await generatePresentationDeck(
+        title.trim(),
+        objective.trim(),
+        slideCount,
+        selectedPattern,
+        documentText || undefined,
+      );
       setDeckTitle(deck.title);
       setSlides(deck.slides);
       setSlideIndex(0);
@@ -367,12 +407,57 @@ export const Apresentacoes = () => {
                 placeholder="Pra quem é, o que precisa convencer ou explicar, dados importantes..."
                 className="w-full resize-none rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary/40"
               />
+              <div className="mt-2">
+                {documentFileName ? (
+                  <div className="flex items-center gap-2 rounded-lg bg-surface-hover px-2.5 py-1.5 text-[11px] text-text-secondary">
+                    <FileText size={12} className="shrink-0" />
+                    <span className="truncate">{documentFileName}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDocumentText(null);
+                        setDocumentFileName(null);
+                      }}
+                      className="ml-auto shrink-0 text-text-secondary hover:text-red-400"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => documentInputRef.current?.click()}
+                    disabled={isExtractingDocument}
+                    className="flex items-center gap-1.5 text-[11px] font-medium text-text-secondary hover:text-foreground disabled:opacity-50"
+                  >
+                    {isExtractingDocument ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+                    {isExtractingDocument ? 'Lendo documento...' : 'ou envie um documento (.docx/.pdf) como base'}
+                  </button>
+                )}
+                <input
+                  type="file"
+                  accept=".docx,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  ref={documentInputRef}
+                  onChange={handleDocumentUpload}
+                  className="hidden"
+                />
+              </div>
             </div>
 
             <div>
-              <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-widest text-text-tertiary">
-                Padrão (opcional)
-              </label>
+              <div className="mb-1.5 flex items-center justify-between">
+                <label className="block text-[10px] font-bold uppercase tracking-widest text-text-tertiary">
+                  Padrão (opcional)
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowTemplateUpload(true)}
+                  className="flex items-center gap-1 text-[10px] font-semibold text-primary hover:underline"
+                >
+                  <Upload size={10} />
+                  Importar modelo (.pptx)
+                </button>
+              </div>
               <div className="space-y-1.5">
                 <button
                   type="button"
@@ -385,7 +470,7 @@ export const Apresentacoes = () => {
                 >
                   Sem padrão fixo
                 </button>
-                {PRESENTATION_PATTERNS.map((p) => (
+                {allPatterns.map((p) => (
                   <button
                     key={p.id}
                     type="button"
@@ -771,6 +856,18 @@ export const Apresentacoes = () => {
             </button>
           </div>
         </div>
+      )}
+
+      {showTemplateUpload && (
+        <TemplateUploadModal
+          onClose={() => setShowTemplateUpload(false)}
+          onSaved={(pattern) => {
+            setCustomPatterns((prev) => [pattern, ...prev]);
+            setPatternId(pattern.id);
+            if (!primaryColorTouched) setPrimaryColor(pattern.suggestedPrimaryColor);
+            setShowTemplateUpload(false);
+          }}
+        />
       )}
     </div>
   );

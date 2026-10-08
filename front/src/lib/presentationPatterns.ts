@@ -16,7 +16,9 @@ export interface PresentationPattern {
       padrao, sem precisar mexer no tema (DDM/Escuro/Claro). */
   suggestedPrimaryColor: string;
   slideSequence: SlideType[];
-  examples: Partial<Record<SlideType, string[]>>;
+  /** So os padroes curados a mao tem exemplo de estilo — padrao enviado pela
+      pessoa (upload de .pptx) nunca tem, de proposito (ver nota acima). */
+  examples?: Partial<Record<SlideType, string[]>>;
 }
 
 export const PRESENTATION_PATTERNS: PresentationPattern[] = [

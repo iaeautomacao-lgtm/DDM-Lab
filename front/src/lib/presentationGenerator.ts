@@ -1,5 +1,5 @@
 import { callOpenAI } from './openai';
-import { findPattern } from './presentationPatterns';
+import type { PresentationPattern } from './presentationPatterns';
 import type { Slide } from './presentationsData';
 
 const BASE_SYSTEM_PROMPT = `Você é um consultor sênior de apresentações corporativas do Grupo DDM (educação financeira, cobrança humanizada, gestão de carteiras e contact center).
@@ -66,29 +66,35 @@ export const generatePresentationDeck = async (
   title: string,
   objective: string,
   slideCount?: number,
-  patternId?: string | null,
+  pattern?: PresentationPattern | null,
+  documentText?: string,
 ): Promise<GeneratedDeck> => {
   const countInstruction = slideCount
     ? `A apresentação deve ter exatamente ${slideCount} slides no total (contando capa e fechamento) — ajuste a quantidade de slides de conteúdo pra bater nesse número.`
     : 'Use entre 6 e 9 slides no total (contando capa e fechamento).';
 
-  const pattern = findPattern(patternId ?? null);
   let patternInstruction = `Sem padrão fixo: alterne "topicos" e "duas_colunas" pros slides de conteúdo, use "citacao" no máximo uma vez se agregar valor, e sempre feche com "fechamento".`;
 
   if (pattern) {
     const exampleLines = pattern.slideSequence
       .filter((type, idx, arr) => arr.indexOf(type) === idx) // tipos unicos, na ordem
       .map((type) => {
-        const ex = pattern.examples[type]?.[0];
+        const ex = pattern.examples?.[type]?.[0];
         return ex ? `- ${type}: estilo de referência (NÃO copie o conteúdo, só o jeito de escrever) — "${ex}"` : null;
       })
       .filter(Boolean)
       .join('\n');
 
-    patternInstruction = `Siga o padrão "${pattern.label}" (${pattern.description}). Sequência de slides de referência (adapte a quantidade de slides repetidos — ex. "kpi_grid" ou "insight_cards" — pra bater com o total pedido, mas mantenha a ORDEM e os TIPOS dessa sequência): ${pattern.slideSequence.join(' → ')}.\n\nExemplos de estilo de cada tipo nesse padrão (são de OUTRAS empresas — nunca repita os números ou nomes, só o tom e o formato):\n${exampleLines}`;
+    patternInstruction = `Siga o padrão "${pattern.label}" (${pattern.description}). Sequência de slides de referência (adapte a quantidade de slides repetidos — ex. "kpi_grid" ou "insight_cards" — pra bater com o total pedido, mas mantenha a ORDEM e os TIPOS dessa sequência): ${pattern.slideSequence.join(' → ')}.${
+      exampleLines ? `\n\nExemplos de estilo de cada tipo nesse padrão (são de OUTRAS empresas — nunca repita os números ou nomes, só o tom e o formato):\n${exampleLines}` : ''
+    }`;
   }
 
-  const userMessage = `Título da apresentação: "${title}"\nObjetivo / contexto: "${objective || 'Não especificado — use o bom senso a partir do título.'}"\n${countInstruction}\n\n${patternInstruction}\n\nRetorne apenas o JSON pedido.`;
+  const documentInstruction = documentText
+    ? `\n\nConteúdo do documento enviado pelo usuário (base a apresentação NISSO — resuma, estruture e distribua pelos slides, não invente dados que contradigam o documento):\n"""\n${documentText}\n"""`
+    : '';
+
+  const userMessage = `Título da apresentação: "${title}"\nObjetivo / contexto: "${objective || 'Não especificado — use o bom senso a partir do título.'}"\n${countInstruction}\n\n${patternInstruction}${documentInstruction}\n\nRetorne apenas o JSON pedido.`;
 
   const { text } = await callOpenAI(
     [

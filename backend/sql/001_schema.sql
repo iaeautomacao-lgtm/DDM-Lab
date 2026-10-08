@@ -412,6 +412,22 @@ CREATE TABLE IF NOT EXISTS presentations (
   CONSTRAINT fk_presentations_user FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ── Padroes de apresentacao enviados pelos usuarios ─────────────────────────
+-- Upload de .pptx de referencia extrai so a ESTRUTURA (sequencia de slide +
+-- cor) — nunca o texto real, pra nao guardar dado confidencial de cliente.
+
+CREATE TABLE IF NOT EXISTS presentation_patterns (
+  id                      CHAR(36)     NOT NULL PRIMARY KEY,
+  label                   VARCHAR(120) NOT NULL,
+  description             VARCHAR(255) NULL,
+  slide_sequence          JSON         NOT NULL,
+  suggested_primary_color VARCHAR(9)   NULL,
+  created_by              CHAR(36)     NULL,
+  created_at              DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  KEY idx_presentation_patterns_user (created_by),
+  CONSTRAINT fk_presentation_patterns_user FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ── Auditoria ───────────────────────────────────────────────────────────────
 -- Nao existia no Supabase. Entra agora: sem RLS, a trilha de quem fez o que
 -- passa a ser a principal evidencia em caso de incidente.

@@ -27,6 +27,8 @@ import {
 import { sendPasswordResetCode } from "./mailer.js";
 import { upload, saveFile, getFileRow, readFileBuffer, deleteFile, fileUrl, isInlineSafeMimeType } from "./storage.js";
 import { buildPptxBuffer, isValidDeck } from "./pptxBuilder.js";
+import { extractDocumentText, SUPPORTED_DOCUMENT_MIME_TYPES } from "./documentExtract.js";
+import { analyzePptxTemplate } from "./pptxPatternExtractor.js";
 
 const router = Router();
 const uuid = () => crypto.randomUUID();
@@ -2209,6 +2211,128 @@ router.post(
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Content-Disposition", `attachment; filename="${safeName}.pptx"`);
     res.send(buffer);
+  }),
+);
+
+// ══════════════════════════════════════════════════════════════════════════
+// DDM Apresentacoes — criar a partir de documento enviado, e padroes
+// extraidos de .pptx de referencia enviado pelo usuario
+// ══════════════════════════════════════════════════════════════════════════
+
+const SLIDE_TYPE_VALUES = [
+  "capa", "topicos", "duas_colunas", "citacao", "fechamento",
+  "kpi_grid", "insight_cards", "funil", "grafico", "tabela",
+];
+
+// Parsear docx/pdf ou abrir um .pptx como zip e trabalho de CPU, nao chamada
+// de IA — limite mais folgado que o da IA, so pra segurar abuso.
+const documentLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.user?.id || ipKeyGenerator(req.ip),
+});
+
+router.post(
+  "/presentations/extract-document",
+  requireAuth,
+  documentLimiter,
+  upload.single("file"),
+  h(async (req, res) => {
+    if (!req.file) return res.status(400).json({ error: { message: "Envie um arquivo .docx ou .pdf." } });
+    if (!SUPPORTED_DOCUMENT_MIME_TYPES.has(req.file.mimetype)) {
+      return res.status(400).json({ error: { message: "Formato nao suportado. Envie um .docx ou .pdf." } });
+    }
+
+    try {
+      const text = await extractDocumentText(req.file.buffer, req.file.mimetype);
+      res.json({ text });
+    } catch (err) {
+      if (err.code === "UNSUPPORTED_FORMAT" || err.code === "EMPTY_DOCUMENT") {
+        return res.status(400).json({ error: { message: err.message } });
+      }
+      throw err;
+    }
+  }),
+);
+
+router.post(
+  "/presentations/analyze-template",
+  requireAuth,
+  documentLimiter,
+  upload.single("file"),
+  h(async (req, res) => {
+    if (!req.file) return res.status(400).json({ error: { message: "Envie um arquivo .pptx." } });
+    if (!req.file.originalname.toLowerCase().endsWith(".pptx")) {
+      return res.status(400).json({ error: { message: "O arquivo precisa ser um .pptx." } });
+    }
+
+    try {
+      const analysis = await analyzePptxTemplate(req.file.buffer);
+      res.json(analysis);
+    } catch (err) {
+      if (["INVALID_PPTX", "NO_SLIDES", "TOO_MANY_SLIDES"].includes(err.code)) {
+        return res.status(400).json({ error: { message: err.message } });
+      }
+      throw err;
+    }
+  }),
+);
+
+router.get(
+  "/presentation-patterns",
+  requireAuth,
+  h(async (req, res) => {
+    const rows = await db.query(
+      `SELECT pp.*, u.full_name AS author_name FROM presentation_patterns pp
+       LEFT JOIN users u ON u.id = pp.created_by
+       ORDER BY pp.created_at DESC`,
+    );
+    res.json({ patterns: rows.map((r) => ({ ...r, slide_sequence: JSON.parse(r.slide_sequence || "[]") })) });
+  }),
+);
+
+router.post(
+  "/presentation-patterns",
+  requireAuth,
+  h(async (req, res) => {
+    const { label, description, slideSequence, suggestedPrimaryColor } = req.body || {};
+    if (!label?.trim() || !Array.isArray(slideSequence) || slideSequence.length === 0) {
+      return res.status(400).json({ error: { message: "Nome e ao menos um slide na sequencia sao obrigatorios." } });
+    }
+    if (!slideSequence.every((t) => SLIDE_TYPE_VALUES.includes(t))) {
+      return res.status(400).json({ error: { message: "Sequencia de slide com tipo invalido." } });
+    }
+    if (suggestedPrimaryColor && !/^#[0-9a-fA-F]{6}$/.test(suggestedPrimaryColor)) {
+      return res.status(400).json({ error: { message: "Cor invalida." } });
+    }
+
+    const id = uuid();
+    await db.exec(
+      `INSERT INTO presentation_patterns (id, label, description, slide_sequence, suggested_primary_color, created_by)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [id, label.trim(), description?.trim() || null, JSON.stringify(slideSequence), suggestedPrimaryColor || null, req.user.id],
+    );
+
+    await logAudit(req.user.id, "created", "presentation_pattern", id, { label });
+
+    const row = await db.queryOne(`SELECT * FROM presentation_patterns WHERE id = ?`, [id]);
+    res.status(201).json({ pattern: { ...row, slide_sequence: JSON.parse(row.slide_sequence || "[]") } });
+  }),
+);
+
+router.delete(
+  "/presentation-patterns/:id",
+  requireAuth,
+  h(async (req, res) => {
+    const existing = await db.queryOne(`SELECT created_by FROM presentation_patterns WHERE id = ?`, [req.params.id]);
+    if (!existing) return res.status(404).json({ error: { message: "Padrao nao encontrado." } });
+    if (existing.created_by !== req.user.id && req.user.role !== "admin") {
+      return res.status(403).json({ error: { message: "Sem permissao." } });
+    }
+    await db.exec(`DELETE FROM presentation_patterns WHERE id = ?`, [req.params.id]);
+    res.json({ ok: true });
   }),
 );
 
