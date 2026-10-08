@@ -16,7 +16,10 @@ import {
   type Presentation, type PresentationSummary, type PresentationTheme, type Slide, type SlideType,
 } from '../lib/presentationsData';
 import { SlideRenderer } from '../features/presentations/SlideRenderer';
+import { SlideThumbnail } from '../features/presentations/SlideThumbnail';
 import { TemplateUploadModal } from '../features/presentations/TemplateUploadModal';
+import { PatternGalleryModal } from '../features/presentations/PatternGalleryModal';
+import { blankSlide } from '../lib/blankSlide';
 
 type Tab = 'criar' | 'historico';
 
@@ -32,70 +35,6 @@ const SLIDE_TYPE_OPTIONS: Array<{ value: SlideType; label: string }> = [
   { value: 'citacao', label: 'Citação' },
   { value: 'fechamento', label: 'Fechamento' },
 ];
-
-const blankSlide = (type: SlideType): Slide => {
-  switch (type) {
-    case 'capa':
-      return { type, title: 'Título da capa', subtitle: 'Subtítulo' };
-    case 'duas_colunas':
-      return {
-        type,
-        title: 'Título do slide',
-        columnLeft: { heading: 'Coluna A', bullets: ['Ponto 1'] },
-        columnRight: { heading: 'Coluna B', bullets: ['Ponto 1'] },
-      };
-    case 'citacao':
-      return { type, quote: 'Frase de efeito aqui.', quoteAuthor: 'Autor' };
-    case 'fechamento':
-      return { type, title: 'Obrigado', bullets: ['contato@grupoddm.com.br'] };
-    case 'kpi_grid':
-      return {
-        type,
-        title: 'Título do slide',
-        kpiItems: [
-          { value: '0', label: 'Indicador 1' },
-          { value: '0', label: 'Indicador 2' },
-          { value: '0', label: 'Indicador 3' },
-        ],
-      };
-    case 'insight_cards':
-      return {
-        type,
-        title: 'Título do slide',
-        insightItems: [
-          { number: '1', title: 'Primeiro ponto', body: 'Descrição do ponto.' },
-          { number: '2', title: 'Segundo ponto', body: 'Descrição do ponto.' },
-        ],
-      };
-    case 'funil':
-      return {
-        type,
-        title: 'Título do slide',
-        funnelStages: [
-          { label: 'Etapa 1', value: '100%' },
-          { label: 'Etapa 2', value: '60%' },
-          { label: 'Etapa 3', value: '20%' },
-        ],
-      };
-    case 'grafico':
-      return {
-        type,
-        title: 'Título do slide',
-        chartType: 'bar',
-        chartCategories: ['Jan', 'Fev', 'Mar'],
-        chartSeries: [{ name: 'Série 1', values: [10, 20, 30] }],
-      };
-    case 'tabela':
-      return {
-        type,
-        title: 'Título do slide',
-        tableColumns: ['Indicador', 'Mês 1', 'Mês 2'],
-        tableRows: [['Exemplo', '0', '0']],
-      };
-    default:
-      return { type: 'topicos', title: 'Título do slide', bullets: ['Ponto 1', 'Ponto 2'] };
-  }
-};
 
 const linesToBullets = (text: string) => text.split('\n').map((l) => l.trim()).filter(Boolean);
 const linesToCells = (text: string) =>
@@ -115,6 +54,7 @@ export const Apresentacoes = () => {
   const [patternId, setPatternId] = useState<string | null>(null);
   const [customPatterns, setCustomPatterns] = useState<PresentationPattern[]>([]);
   const [showTemplateUpload, setShowTemplateUpload] = useState(false);
+  const [showPatternGallery, setShowPatternGallery] = useState(false);
   const allPatterns = [...PRESENTATION_PATTERNS, ...customPatterns];
   const selectedPattern = allPatterns.find((p) => p.id === patternId) ?? null;
 
@@ -445,54 +385,44 @@ export const Apresentacoes = () => {
             </div>
 
             <div>
-              <div className="mb-1.5 flex items-center justify-between">
-                <label className="block text-[10px] font-bold uppercase tracking-widest text-text-tertiary">
-                  Padrão (opcional)
-                </label>
-                <button
-                  type="button"
-                  onClick={() => setShowTemplateUpload(true)}
-                  className="flex items-center gap-1 text-[10px] font-semibold text-primary hover:underline"
-                >
-                  <Upload size={10} />
-                  Importar modelo (.pptx)
-                </button>
-              </div>
-              <div className="space-y-1.5">
-                <button
-                  type="button"
-                  onClick={() => setPatternId(null)}
-                  className={`w-full rounded-xl border px-3 py-2 text-left text-xs font-semibold transition-colors ${
-                    patternId === null
-                      ? 'border-primary/40 bg-primary/10 text-primary'
-                      : 'border-border text-text-secondary hover:border-border-hover hover:text-foreground'
-                  }`}
-                >
-                  Sem padrão fixo
-                </button>
-                {allPatterns.map((p) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => {
-                      setPatternId(p.id);
-                      // So aplica a cor sugerida do padrao se a pessoa ainda
-                      // nao escolheu uma cor de marca na mao — senao
-                      // atropelaria uma escolha deliberada dela.
-                      if (!primaryColorTouched) setPrimaryColor(p.suggestedPrimaryColor);
-                    }}
-                    title={p.description}
-                    className={`w-full rounded-xl border px-3 py-2 text-left text-xs font-semibold transition-colors ${
-                      patternId === p.id
-                        ? 'border-primary/40 bg-primary/10 text-primary'
-                        : 'border-border text-text-secondary hover:border-border-hover hover:text-foreground'
-                    }`}
-                  >
-                    {p.label}
-                    <span className="mt-0.5 block truncate text-[10px] font-normal text-text-tertiary">{p.description}</span>
-                  </button>
-                ))}
-              </div>
+              <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-widest text-text-tertiary">
+                Modelo (opcional)
+              </label>
+              <button
+                type="button"
+                onClick={() => setShowPatternGallery(true)}
+                className="flex w-full items-center gap-3 rounded-xl border border-border p-2 text-left transition-colors hover:border-border-hover hover:bg-surface-hover/40"
+              >
+                {selectedPattern ? (
+                  <div className="grid w-16 shrink-0 grid-cols-2 gap-0.5">
+                    {selectedPattern.slideSequence
+                      .filter((t, i, arr) => arr.indexOf(t) === i)
+                      .slice(0, 4)
+                      .map((type, i) => (
+                        <SlideThumbnail
+                          key={i}
+                          slide={blankSlide(type)}
+                          theme={theme}
+                          brand={{ primaryColor: selectedPattern.suggestedPrimaryColor }}
+                          width={30}
+                        />
+                      ))}
+                  </div>
+                ) : (
+                  <div className="flex h-9 w-16 shrink-0 items-center justify-center rounded-lg bg-surface-hover text-text-secondary/60">
+                    <Sparkles size={15} />
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs font-semibold text-foreground">
+                    {selectedPattern ? selectedPattern.label : 'Sem padrão fixo'}
+                  </p>
+                  <p className="truncate text-[10px] text-text-secondary">
+                    {selectedPattern ? selectedPattern.description : 'A IA decide a estrutura livremente'}
+                  </p>
+                </div>
+                <span className="shrink-0 text-[10px] font-semibold text-primary">Trocar</span>
+              </button>
             </div>
 
             <div>
@@ -856,6 +786,23 @@ export const Apresentacoes = () => {
             </button>
           </div>
         </div>
+      )}
+
+      {showPatternGallery && (
+        <PatternGalleryModal
+          patterns={allPatterns}
+          selectedPatternId={patternId}
+          theme={theme}
+          onSelect={(pattern) => {
+            setPatternId(pattern?.id ?? null);
+            if (pattern && !primaryColorTouched) setPrimaryColor(pattern.suggestedPrimaryColor);
+          }}
+          onRequestImport={() => {
+            setShowPatternGallery(false);
+            setShowTemplateUpload(true);
+          }}
+          onClose={() => setShowPatternGallery(false)}
+        />
       )}
 
       {showTemplateUpload && (
