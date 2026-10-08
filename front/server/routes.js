@@ -30,6 +30,7 @@ import { buildPptxBuffer, isValidDeck } from "./pptxBuilder.js";
 import { buildPdfBuffer } from "./pdfBuilder.js";
 import { extractDocumentText, SUPPORTED_DOCUMENT_MIME_TYPES } from "./documentExtract.js";
 import { analyzePptxTemplate } from "./pptxPatternExtractor.js";
+import { parseSpreadsheetBuffer, profileColumns, isSupportedSpreadsheet, MAX_ROWS } from "./dashboardDataExtractor.js";
 
 const router = Router();
 const uuid = () => crypto.randomUUID();
@@ -2353,6 +2354,205 @@ router.delete(
       return res.status(403).json({ error: { message: "Sem permissao." } });
     }
     await db.exec(`DELETE FROM presentation_patterns WHERE id = ?`, [req.params.id]);
+    res.json({ ok: true });
+  }),
+);
+
+// ══════════════════════════════════════════════════════════════════════════
+// DDM Dashboards — dashboard vivo a partir de planilha (Excel/CSV) enviada
+// pelo usuario. Visibilidade igual Apresentacoes: so quem criou (e admin).
+// ══════════════════════════════════════════════════════════════════════════
+
+const MAX_DASHBOARD_ROWS_BYTES = 12 * 1024 * 1024; // protege contra JSON gigante indo pro banco
+
+// Parsear planilha (xlsx/csv) e trabalho de CPU, nao chamada de IA — mesmo
+// limite folgado usado pra upload de documento/.pptx.
+const dashboardUploadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.user?.id || ipKeyGenerator(req.ip),
+});
+
+const isPlainObject = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
+
+router.post(
+  "/dashboards/parse-file",
+  requireAuth,
+  dashboardUploadLimiter,
+  upload.single("file"),
+  h(async (req, res) => {
+    if (!req.file) return res.status(400).json({ error: { message: "Envie um arquivo CSV, XLSX, XLS ou JSON." } });
+    if (!isSupportedSpreadsheet(req.file.originalname)) {
+      return res.status(400).json({ error: { message: "Formato nao suportado. Envie CSV, XLSX, XLS ou JSON." } });
+    }
+    if (!req.file.buffer.length) {
+      return res.status(400).json({ error: { message: "Arquivo vazio." } });
+    }
+
+    try {
+      const parsed = await parseSpreadsheetBuffer(req.file.buffer, req.file.originalname);
+      if (parsed.rows.length === 0) {
+        return res.status(400).json({ error: { message: "Arquivo sem linhas de dados." } });
+      }
+      const profile = profileColumns(parsed.rows, parsed.columns);
+      res.json({ ...parsed, profile });
+    } catch (err) {
+      if (err.code === "UNSUPPORTED_FORMAT") return res.status(400).json({ error: { message: err.message } });
+      throw err;
+    }
+  }),
+);
+
+router.post(
+  "/dashboards/data-sources",
+  requireAuth,
+  dashboardUploadLimiter,
+  h(async (req, res) => {
+    const { fileName, rows, profile } = req.body || {};
+    if (!fileName || !Array.isArray(rows) || rows.length === 0 || !Array.isArray(profile) || profile.length === 0) {
+      return res.status(400).json({ error: { message: "Dados da fonte invalidos." } });
+    }
+    const limitedRows = rows.slice(0, MAX_ROWS);
+    const rowsJson = JSON.stringify(limitedRows);
+    if (Buffer.byteLength(rowsJson, "utf8") > MAX_DASHBOARD_ROWS_BYTES) {
+      return res.status(413).json({ error: { message: "Base de dados grande demais. Reduza o numero de linhas/colunas." } });
+    }
+
+    const columns = profile.map((p) => p.originalName);
+    const id = uuid();
+    await db.exec(
+      `INSERT INTO dashboard_data_sources (id, file_name, row_count, column_count, columns_profile, rows_data, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [id, String(fileName).slice(0, 255), limitedRows.length, columns.length, JSON.stringify(profile), rowsJson, req.user.id],
+    );
+
+    res.status(201).json({ dataSourceId: id, rowCount: limitedRows.length, columnCount: columns.length });
+  }),
+);
+
+router.get(
+  "/dashboards/data-sources/:id",
+  requireAuth,
+  h(async (req, res) => {
+    const row = await db.queryOne(`SELECT * FROM dashboard_data_sources WHERE id = ?`, [req.params.id]);
+    if (!row) return res.status(404).json({ error: { message: "Fonte de dados nao encontrada." } });
+    if (row.created_by !== req.user.id && req.user.role !== "admin") {
+      return res.status(403).json({ error: { message: "Sem permissao." } });
+    }
+    res.json({
+      dataSource: {
+        id: row.id,
+        fileName: row.file_name,
+        rowCount: row.row_count,
+        columnCount: row.column_count,
+        profile: JSON.parse(row.columns_profile || "[]"),
+        rows: JSON.parse(row.rows_data || "[]"),
+        createdAt: row.created_at,
+      },
+    });
+  }),
+);
+
+router.get(
+  "/dashboards",
+  requireAuth,
+  h(async (req, res) => {
+    const rows = await db.query(
+      `SELECT id, name, objective, data_source_id, created_by, created_at, updated_at
+       FROM dashboards WHERE created_by = ? ORDER BY updated_at DESC`,
+      [req.user.id],
+    );
+    res.json({ dashboards: rows });
+  }),
+);
+
+router.get(
+  "/dashboards/:id",
+  requireAuth,
+  h(async (req, res) => {
+    const row = await db.queryOne(`SELECT * FROM dashboards WHERE id = ?`, [req.params.id]);
+    if (!row) return res.status(404).json({ error: { message: "Dashboard nao encontrado." } });
+    if (row.created_by !== req.user.id && req.user.role !== "admin") {
+      return res.status(403).json({ error: { message: "Sem permissao." } });
+    }
+    res.json({ dashboard: { ...row, config: JSON.parse(row.config || "{}") } });
+  }),
+);
+
+router.post(
+  "/dashboards",
+  requireAuth,
+  h(async (req, res) => {
+    const { name, objective, config, dataSourceId } = req.body || {};
+    if (!name?.trim() || !isPlainObject(config)) {
+      return res.status(400).json({ error: { message: "Nome e configuracao do dashboard sao obrigatorios." } });
+    }
+    if (dataSourceId) {
+      const src = await db.queryOne(`SELECT created_by FROM dashboard_data_sources WHERE id = ?`, [dataSourceId]);
+      if (!src || (src.created_by !== req.user.id && req.user.role !== "admin")) {
+        return res.status(400).json({ error: { message: "Fonte de dados invalida." } });
+      }
+    }
+
+    const id = uuid();
+    await db.exec(
+      `INSERT INTO dashboards (id, name, objective, config, data_source_id, created_by) VALUES (?, ?, ?, ?, ?, ?)`,
+      [id, name.trim(), objective?.trim() || null, JSON.stringify(config), dataSourceId || null, req.user.id],
+    );
+
+    const row = await db.queryOne(`SELECT * FROM dashboards WHERE id = ?`, [id]);
+    res.status(201).json({ dashboard: { ...row, config: JSON.parse(row.config || "{}") } });
+  }),
+);
+
+router.put(
+  "/dashboards/:id",
+  requireAuth,
+  h(async (req, res) => {
+    const existing = await db.queryOne(`SELECT created_by FROM dashboards WHERE id = ?`, [req.params.id]);
+    if (!existing) return res.status(404).json({ error: { message: "Dashboard nao encontrado." } });
+    if (existing.created_by !== req.user.id && req.user.role !== "admin") {
+      return res.status(403).json({ error: { message: "Sem permissao." } });
+    }
+
+    const { name, objective, config } = req.body || {};
+    if (config !== undefined && !isPlainObject(config)) {
+      return res.status(400).json({ error: { message: "Configuracao invalida." } });
+    }
+
+    const set = [];
+    const params = [];
+    const push = (column, value) => {
+      if (value === undefined) return;
+      set.push(`${column} = ?`);
+      params.push(value);
+    };
+    push("name", name?.trim());
+    if (objective !== undefined) push("objective", objective?.trim() || null);
+    if (config !== undefined) push("config", JSON.stringify(config));
+
+    if (set.length) {
+      params.push(req.params.id);
+      await db.exec(`UPDATE dashboards SET ${set.join(", ")} WHERE id = ?`, params);
+    }
+
+    const row = await db.queryOne(`SELECT * FROM dashboards WHERE id = ?`, [req.params.id]);
+    res.json({ dashboard: { ...row, config: JSON.parse(row.config || "{}") } });
+  }),
+);
+
+router.delete(
+  "/dashboards/:id",
+  requireAuth,
+  h(async (req, res) => {
+    const existing = await db.queryOne(`SELECT created_by FROM dashboards WHERE id = ?`, [req.params.id]);
+    if (!existing) return res.status(404).json({ error: { message: "Dashboard nao encontrado." } });
+    if (existing.created_by !== req.user.id && req.user.role !== "admin") {
+      return res.status(403).json({ error: { message: "Sem permissao." } });
+    }
+    await db.exec(`DELETE FROM dashboards WHERE id = ?`, [req.params.id]);
     res.json({ ok: true });
   }),
 );

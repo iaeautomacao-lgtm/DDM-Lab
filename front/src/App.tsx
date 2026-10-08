@@ -12,6 +12,7 @@ import { Generator } from './pages/Criar pedido';
 import { ImageGenerator } from './pages/GerarImagem';
 import { DDMCreator } from './pages/DDMCreator';
 import { Apresentacoes } from './pages/Apresentacoes';
+import { Dashboards } from './pages/Dashboards';
 import { Library } from './pages/Library';
 import { Login } from './pages/Login';
 import { Profile } from './pages/Meu perfil';
@@ -52,6 +53,7 @@ function AppContent() {
 
             <Route path="ddmcreator" element={<DDMCreator />} />
             <Route path="apresentacoes" element={<Apresentacoes />} />
+            <Route path="dashboards" element={<Dashboards />} />
             <Route path="settings" element={<Settings />} />
             <Route path="profile" element={<Profile />} />
             <Route path="*" element={<Navigate to="/" replace />} />

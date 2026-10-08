@@ -12,6 +12,7 @@ import {
   ImagePlus,
   Boxes,
   Presentation,
+  BarChart3,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Logo } from '../ui/Logo';
@@ -24,6 +25,7 @@ const navItems: Array<{ icon: React.ElementType; label: string; path: string; ad
   { icon: Library, label: 'Modelos Prontos', path: '/library' },
   { icon: ImagePlus, label: 'DDM Creator', path: '/ddmcreator' },
   { icon: Presentation, label: 'DDM Apresentações', path: '/apresentacoes' },
+  { icon: BarChart3, label: 'DDM Dashboards', path: '/dashboards' },
   { icon: User, label: 'Meu Perfil', path: '/profile' },
   { icon: Settings, label: 'Uso Responsável', path: '/settings' },
 ];
