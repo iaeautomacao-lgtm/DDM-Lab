@@ -7,15 +7,15 @@ export type ExportableDeck = Pick<Presentation, 'title' | 'theme' | 'slides'> & 
   logoDataUrl?: string | null;
 };
 
-/**
- * Pede pro servidor montar o .pptx (pptxgenjs roda no processo Node, nao no
- * navegador) e dispara o download da resposta. O front nunca monta o arquivo
- * sozinho — so manda o deck e recebe o binario pronto.
- */
-export const exportPresentationToPptx = async (presentation: ExportableDeck): Promise<void> => {
-  const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined) || '';
+const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined) || '';
 
-  const res = await fetch(`${API_BASE}/api/presentations/export`, {
+/**
+ * Pede pro servidor montar o arquivo (pptxgenjs/pdfkit rodam no processo
+ * Node, nao no navegador) e dispara o download da resposta. O front nunca
+ * monta o arquivo sozinho — so manda o deck e recebe o binario pronto.
+ */
+const downloadDeck = async (endpoint: string, presentation: ExportableDeck, extension: string): Promise<void> => {
+  const res = await fetch(`${API_BASE}/api/presentations/${endpoint}`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
@@ -24,12 +24,12 @@ export const exportPresentationToPptx = async (presentation: ExportableDeck): Pr
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new ApiError(body?.error?.message || `Não foi possível gerar o .pptx (erro ${res.status}).`, res.status);
+    throw new ApiError(body?.error?.message || `Não foi possível gerar o .${extension} (erro ${res.status}).`, res.status);
   }
 
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
-  const fileName = `${presentation.title.replace(/[^\p{L}\p{N}\s-]/gu, '').trim().replace(/\s+/g, '-') || 'apresentacao'}.pptx`;
+  const fileName = `${presentation.title.replace(/[^\p{L}\p{N}\s-]/gu, '').trim().replace(/\s+/g, '-') || 'apresentacao'}.${extension}`;
 
   const link = document.createElement('a');
   link.href = url;
@@ -39,3 +39,9 @@ export const exportPresentationToPptx = async (presentation: ExportableDeck): Pr
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
 };
+
+export const exportPresentationToPptx = (presentation: ExportableDeck): Promise<void> =>
+  downloadDeck('export', presentation, 'pptx');
+
+export const exportPresentationToPdf = (presentation: ExportableDeck): Promise<void> =>
+  downloadDeck('export-pdf', presentation, 'pdf');

@@ -27,6 +27,7 @@ import {
 import { sendPasswordResetCode } from "./mailer.js";
 import { upload, saveFile, getFileRow, readFileBuffer, deleteFile, fileUrl, isInlineSafeMimeType } from "./storage.js";
 import { buildPptxBuffer, isValidDeck } from "./pptxBuilder.js";
+import { buildPdfBuffer } from "./pdfBuilder.js";
 import { extractDocumentText, SUPPORTED_DOCUMENT_MIME_TYPES } from "./documentExtract.js";
 import { analyzePptxTemplate } from "./pptxPatternExtractor.js";
 
@@ -2210,6 +2211,26 @@ router.post(
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.presentationml.presentation");
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Content-Disposition", `attachment; filename="${safeName}.pptx"`);
+    res.send(buffer);
+  }),
+);
+
+router.post(
+  "/presentations/export-pdf",
+  requireAuth,
+  pptxExportLimiter,
+  h(async (req, res) => {
+    const { title, theme, slides, primaryColor, accentColor, logoDataUrl } = req.body || {};
+    if (!isValidDeck({ title, theme, slides, primaryColor, accentColor, logoDataUrl })) {
+      return res.status(400).json({ error: { message: "Dados da apresentacao invalidos para exportar." } });
+    }
+
+    const buffer = await buildPdfBuffer({ title: title.trim(), theme, slides, primaryColor, accentColor, logoDataUrl });
+
+    const safeName = title.trim().replace(/[^\p{L}\p{N}\s-]/gu, "").replace(/\s+/g, "-") || "apresentacao";
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Content-Disposition", `attachment; filename="${safeName}.pdf"`);
     res.send(buffer);
   }),
 );

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Download, FileText, History, Loader2,
+  ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Download, FileDown, FileText, History, Loader2,
   Plus, Presentation as PresentationIcon, Save, Sparkles, Trash2, Upload, Wand2, X, ZoomIn,
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
@@ -9,7 +9,7 @@ import { Card } from '../components/ui/Card';
 import { generatePresentationDeck } from '../lib/presentationGenerator';
 import { PRESENTATION_PATTERNS, type PresentationPattern } from '../lib/presentationPatterns';
 import { fetchCustomPatterns, extractDocumentText } from '../lib/customPatternsData';
-import { exportPresentationToPptx } from '../lib/pptxExport';
+import { exportPresentationToPptx, exportPresentationToPdf } from '../lib/pptxExport';
 import {
   createPresentation, deletePresentation, fetchPresentation, fetchPresentations, updatePresentation,
   SLIDE_COUNT_OPTIONS, THEME_OPTIONS,
@@ -101,6 +101,7 @@ export const Apresentacoes = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [error, setError] = useState('');
 
   const [history, setHistory] = useState<PresentationSummary[]>([]);
@@ -212,6 +213,19 @@ export const Apresentacoes = () => {
       setError(err instanceof Error ? err.message : 'Não foi possível gerar o arquivo .pptx.');
     } finally {
       setIsExporting(false);
+    }
+  };
+
+  const handleExportPdf = async () => {
+    if (!slides) return;
+    setIsExportingPdf(true);
+    setError('');
+    try {
+      await exportPresentationToPdf({ title: deckTitle, theme, slides, primaryColor, accentColor, logoDataUrl });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível gerar o arquivo .pdf.');
+    } finally {
+      setIsExportingPdf(false);
     }
   };
 
@@ -542,6 +556,10 @@ export const Apresentacoes = () => {
                 <Button variant="outline" onClick={handleExport} disabled={isExporting} className="w-full justify-center">
                   {isExporting ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
                   Baixar .pptx
+                </Button>
+                <Button variant="outline" onClick={handleExportPdf} disabled={isExportingPdf} className="w-full justify-center">
+                  {isExportingPdf ? <Loader2 size={15} className="animate-spin" /> : <FileDown size={15} />}
+                  Baixar .pdf
                 </Button>
               </div>
             )}
