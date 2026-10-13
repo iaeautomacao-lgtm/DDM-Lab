@@ -68,6 +68,7 @@ export const generatePresentationDeck = async (
   slideCount?: number,
   pattern?: PresentationPattern | null,
   documentText?: string,
+  dataSummary?: string,
 ): Promise<GeneratedDeck> => {
   const countInstruction = slideCount
     ? `A apresentação deve ter exatamente ${slideCount} slides no total (contando capa e fechamento) — ajuste a quantidade de slides de conteúdo pra bater nesse número.`
@@ -94,7 +95,11 @@ export const generatePresentationDeck = async (
     ? `\n\nConteúdo do documento enviado pelo usuário (base a apresentação NISSO — resuma, estruture e distribua pelos slides, não invente dados que contradigam o documento):\n"""\n${documentText}\n"""`
     : '';
 
-  const userMessage = `Título da apresentação: "${title}"\nObjetivo / contexto: "${objective || 'Não especificado — use o bom senso a partir do título.'}"\n${countInstruction}\n\n${patternInstruction}${documentInstruction}\n\nRetorne apenas o JSON pedido.`;
+  const dataSummaryInstruction = dataSummary
+    ? `\n\nDADOS REAIS extraídos de uma planilha enviada pelo usuário (soma/média/top categorias já calculados). Use ESTES números — não invente outros — nos slides de "kpi_grid", "grafico", "tabela" ou "funil" sempre que fizerem sentido pro objetivo. Se o objetivo não pedir esses dados, ignore:\n"""\n${dataSummary}\n"""`
+    : '';
+
+  const userMessage = `Título da apresentação: "${title}"\nObjetivo / contexto: "${objective || 'Não especificado — use o bom senso a partir do título.'}"\n${countInstruction}\n\n${patternInstruction}${documentInstruction}${dataSummaryInstruction}\n\nRetorne apenas o JSON pedido.`;
 
   const { text } = await callOpenAI(
     [

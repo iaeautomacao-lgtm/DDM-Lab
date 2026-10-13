@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Download, FileDown, FileText, History, Loader2,
+  ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Download, FileDown, FileSpreadsheet, FileText, History, Loader2,
   Plus, Presentation as PresentationIcon, Save, Sparkles, Trash2, Upload, Wand2, X, ZoomIn,
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
@@ -9,6 +9,8 @@ import { Card } from '../components/ui/Card';
 import { generatePresentationDeck } from '../lib/presentationGenerator';
 import { PRESENTATION_PATTERNS, type PresentationPattern } from '../lib/presentationPatterns';
 import { fetchCustomPatterns, extractDocumentText } from '../lib/customPatternsData';
+import { parseSpreadsheetFile } from '../lib/dashboards/dashboardsData';
+import { summarizeDatasetForPresentation } from '../lib/dashboards/summarize';
 import { exportPresentationToPptx, exportPresentationToPdf } from '../lib/pptxExport';
 import {
   createPresentation, deletePresentation, fetchPresentation, fetchPresentations, updatePresentation,
@@ -63,6 +65,11 @@ export const Apresentacoes = () => {
   const [isExtractingDocument, setIsExtractingDocument] = useState(false);
   const documentInputRef = useRef<HTMLInputElement>(null);
 
+  const [spreadsheetFileName, setSpreadsheetFileName] = useState<string | null>(null);
+  const [dataSummary, setDataSummary] = useState<string | null>(null);
+  const [isExtractingSpreadsheet, setIsExtractingSpreadsheet] = useState(false);
+  const spreadsheetInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     fetchCustomPatterns()
       .then(setCustomPatterns)
@@ -88,7 +95,7 @@ export const Apresentacoes = () => {
   // precisa gerar de novo pra aplicar (trocar o padrao sozinho nao
   // regenera automaticamente).
   const [lastGeneratedConfig, setLastGeneratedConfig] = useState<string | null>(null);
-  const currentConfigKey = JSON.stringify({ title: title.trim(), objective: objective.trim(), slideCount, patternId, documentText });
+  const currentConfigKey = JSON.stringify({ title: title.trim(), objective: objective.trim(), slideCount, patternId, documentText, dataSummary });
   const isStale = lastGeneratedConfig !== null && lastGeneratedConfig !== currentConfigKey;
 
   const [presentationId, setPresentationId] = useState<string | null>(null);
@@ -145,6 +152,24 @@ export const Apresentacoes = () => {
     }
   };
 
+  const handleSpreadsheetUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setIsExtractingSpreadsheet(true);
+    setError('');
+    try {
+      const parsed = await parseSpreadsheetFile(file);
+      if (parsed.rows.length === 0) throw new Error('Planilha sem linhas de dados.');
+      setDataSummary(summarizeDatasetForPresentation(parsed.profile, parsed.rows));
+      setSpreadsheetFileName(file.name);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível ler essa planilha.');
+    } finally {
+      setIsExtractingSpreadsheet(false);
+    }
+  };
+
   const handleGenerate = async () => {
     if (!title.trim()) {
       setError('Digite um título para a apresentação.');
@@ -159,6 +184,7 @@ export const Apresentacoes = () => {
         slideCount,
         selectedPattern,
         documentText || undefined,
+        dataSummary || undefined,
       );
       setDeckTitle(deck.title);
       setSlides(deck.slides);
@@ -393,6 +419,41 @@ export const Apresentacoes = () => {
                   accept=".docx,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                   ref={documentInputRef}
                   onChange={handleDocumentUpload}
+                  className="hidden"
+                />
+              </div>
+              <div className="mt-1.5">
+                {spreadsheetFileName ? (
+                  <div className="flex items-center gap-2 rounded-lg bg-surface-hover px-2.5 py-1.5 text-[11px] text-text-secondary">
+                    <FileSpreadsheet size={12} className="shrink-0" />
+                    <span className="truncate">{spreadsheetFileName}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDataSummary(null);
+                        setSpreadsheetFileName(null);
+                      }}
+                      className="ml-auto shrink-0 text-text-secondary hover:text-red-400"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => spreadsheetInputRef.current?.click()}
+                    disabled={isExtractingSpreadsheet}
+                    className="flex items-center gap-1.5 text-[11px] font-medium text-text-secondary hover:text-foreground disabled:opacity-50"
+                  >
+                    {isExtractingSpreadsheet ? <Loader2 size={12} className="animate-spin" /> : <FileSpreadsheet size={12} />}
+                    {isExtractingSpreadsheet ? 'Lendo planilha...' : 'ou envie uma planilha (.xlsx/.csv) com dados reais'}
+                  </button>
+                )}
+                <input
+                  type="file"
+                  accept=".csv,.txt,.xlsx,.xls,.json"
+                  ref={spreadsheetInputRef}
+                  onChange={handleSpreadsheetUpload}
                   className="hidden"
                 />
               </div>
