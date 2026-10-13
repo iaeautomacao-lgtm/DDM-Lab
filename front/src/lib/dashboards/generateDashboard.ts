@@ -32,6 +32,7 @@ REGRAS OBRIGATÓRIAS:
    - Razão/percentual: "EXPR / EXPR"   ex: "count(status='FPD') / count()"
    - VALOR deve ser um dos "exemplos" listados para aquela coluna. COLUNA nunca leva aspas duplas nem prefixo "*".
    - PROIBIDO: WHERE, SELECT, CASE, aspas duplas na coluna, colunas inexistentes, nomes de filtro no lugar de coluna.
+   - sum()/avg()/min()/max() só podem usar coluna com papel "metric". NUNCA use essas agregações em coluna de identificador (CPF, CNPJ, matrícula, protocolo, id) nem em coluna de data — "máximo/mínimo/média de CPF" não tem sentido nenhum. Para contar ocorrências de uma dimensão/id, use count() ou count(coluna='valor').
 3. Em "query" dos widgets, "x" é o nome EXATO de uma coluna (dimensão/data) e "y" é uma métrica na gramática acima.
 4. "filters[].field" deve ser o nome EXATO de uma coluna existente.
 5. Sugira de 4 a 6 KPIs e de 3 a 5 widgets relevantes ao objetivo.

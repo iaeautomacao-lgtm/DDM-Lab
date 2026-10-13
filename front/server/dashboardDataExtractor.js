@@ -106,12 +106,14 @@ const isDateValue = (v) => DATE_RE.some((re) => re.test(v.trim()));
 
 const detectType = (name, values) => {
   if (values.length === 0) return "text";
+  // Nome de identificador (CPF/CNPJ/matricula/protocolo) tem prioridade sobre
+  // "e so digito -> numero": senao CPF vira metrica e a IA sugere absurdos
+  // como "maximo/minimo CPF registrado".
+  if (ID_NAME.test(name)) return "id";
   if (values.every(isDateValue)) return "date";
 
   const numeric = values.every((v) => parseNumber(v) !== null);
   if (numeric) return CURRENCY_NAME.test(name) ? "currency" : "number";
-
-  if (ID_NAME.test(name)) return "id";
 
   const distinct = new Set(values).size;
   const ratio = distinct / values.length;
